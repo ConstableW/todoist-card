@@ -26,6 +26,7 @@ You can show the tasks of a project, add, complete, edit and delete them.
 - **Edit** a task by clicking it (extended mode): title, description and due date.
 - **Safe deletion:** deleting asks whether you want to complete the task instead and needs a second confirmation.
 - Filter for tasks that are due today or overdue.
+- Optional **statistics in the header** (open, overdue, due today, completed) that double as one-click filters.
 - Visual editor for the card. It only offers options that work with your selected entity and explains what is missing.
 - Works as a read-only list if changing tasks is not possible.
 
@@ -110,6 +111,33 @@ All options can also be set in the visual editor. The options `show_sections` an
 - **Input field:** adds a new task after pressing `Enter`.
 
 > The list of recently completed tasks is kept in the browser page and is cleared when the page is reloaded. Todoist itself keeps completed tasks in its history.
+
+### Statistics in the header
+
+Set `header_stats` to show how many tasks need attention. It is off by default and can be changed in the visual editor ("Statistics in the header").
+
+```yaml
+type: custom:todoist-card
+entity: todo.inbox
+header_stats: chips
+```
+
+| Value   | Look                                                                                     |
+| ------- | ---------------------------------------------------------------------------------------- |
+| `none`  | No statistics (default).                                                                  |
+| `chips` | Chips for **open**, **overdue**, **today** and **completed**. Chips with a count of 0 are hidden (except _open_). |
+| `line`  | One line such as "25 open · 3 today · 2 overdue" with a progress bar for completed tasks. |
+
+<p align="center">
+  <img src="docs/images/basic-stats.png" alt="Header with open, overdue and today chips" width="380">
+  <img src="docs/images/basic-stats-filter.png" alt="List filtered to overdue tasks" width="380">
+</p>
+
+Click **overdue** or **today** to show only those tasks. Click the chip again, or **open**, to show everything. The filter is only kept until the page is reloaded.
+
+- The counts cover all open tasks, even if `only_today_overdue` is active.
+- _Completed_ counts the recently completed tasks of this browser page (see `show_completed`), not your Todoist history.
+- The statistics belong to the header and disappear with `show_header: false`.
 
 ### Extended mode
 
