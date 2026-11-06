@@ -1,7 +1,7 @@
 # Full setup (REST)
 
-> [!WARNING]
-> **Work in progress.** The basic setup with the Todoist integration (see the [README](../README.md)) is tested against a real Todoist account. This full setup is not yet: the display of sections, the editor hints and the view-only behavior were tested with test data, but the actions that talk to the Todoist API (add, complete, edit, delete, new section, Quick Add) have not yet been verified against a live account. Please report anything that does not work in the [issue tracker](https://github.com/ConstableW/todoist-card/issues).
+> [!NOTE]
+> The full setup was tested against a real Todoist account: showing tasks and sections, adding, completing and undoing, editing (title, description, date, priority, labels), moving between sections, creating a section, Quick Add and deleting. Please report anything that does not work in the [issue tracker](https://github.com/ConstableW/todoist-card/issues).
 
 The official Todoist integration only provides titles, descriptions, dates and the status of tasks. With a small REST setup the card can do more:
 
@@ -63,7 +63,7 @@ todoist_api_token: 'Bearer TODOIST_API_TOKEN'
 Replace
 
 - `TODOIST_API_TOKEN` with your [token](https://app.todoist.com/app/settings/integrations/developer). Keep the `Bearer ` part unchanged.
-- `TODOIST_PROJECT_ID` with the ID of your project. You find it at the end of the project URL: `https://app.todoist.com/app/project/TODOIST_PROJECT_ID` (in API v1 it may contain letters).
+- `TODOIST_PROJECT_ID` with the ID of your project. Open the project in Todoist and look at the URL, for example `https://app.todoist.com/app/project/haushalt-6hwX6x6GFv8MV22c`. The ID is only the part after the last dash (`6hwX6x6GFv8MV22c`), **not** the name in front of it. The ID contains letters in API v1.
 
 Check the configuration in _Developer tools → YAML_ and restart Home Assistant. `rest_command` is only loaded on a restart.
 
@@ -161,7 +161,7 @@ Then:
 - **The card is empty or shows a notice about missing tasks**
   Open _Developer tools → States_ and look at the sensor. Its attributes must contain `project` and `items` or `tasks`. Check that the token in `secrets.yaml` starts with `Bearer ` and that the project ID is correct.
 - **The sensor is `unknown` or `unavailable`**
-  Check the Home Assistant log for REST errors. HTTP 401/403 means a wrong token, 400/404 a wrong project ID.
+  Check the Home Assistant log for REST errors. HTTP 401/403 means a wrong token, 400/404 a wrong project ID. Make sure you only entered the part of the project URL after the last dash.
 - **The card is read-only although I want to change tasks**
   `rest_command.todoist` is not available. Check _Developer tools → Actions_ for `rest_command.todoist` and that you restarted Home Assistant after adding it.
 - **No sections are shown**
