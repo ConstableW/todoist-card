@@ -31,6 +31,19 @@ class TodoistCardEditor extends LitElement {
             },
             {name: 'show_completed', selector: {number: {min: 0, max: 15, mode: 'box'}}},
             {name: 'show_header', selector: {boolean: {}}},
+            {
+                name: 'header_stats',
+                selector: {
+                    select: {
+                        mode: 'dropdown',
+                        options: [
+                            {value: 'none', label: 'None'},
+                            {value: 'chips', label: 'Chips (overdue, today, open, completed)'},
+                            {value: 'line', label: 'One line with progress bar'},
+                        ],
+                    },
+                },
+            },
             {name: 'show_sections', selector: {boolean: {}}},
             {name: 'show_item_add', selector: {boolean: {}}},
             {name: 'use_quick_add', selector: {boolean: {}}},
@@ -142,6 +155,7 @@ class TodoistCardEditor extends LitElement {
             mode: 'quick',
             show_completed: 5,
             show_header: true,
+            header_stats: 'none',
             show_sections: true,
             show_item_add: true,
             use_quick_add: false,
@@ -158,6 +172,7 @@ class TodoistCardEditor extends LitElement {
             mode: 'Mode',
             show_completed: 'Number of completed tasks shown at the end of the list (0 to disable)',
             show_header: 'Show header',
+            header_stats: 'Statistics in the header',
             show_sections: 'Group tasks by Todoist sections (collapsible)',
             show_item_add: 'Show text input element for adding new items to the list',
             use_quick_add: 'Use Quick Add (check the README configuration before enabling)',
@@ -1196,6 +1211,72 @@ class TodoistCard extends LitElement {
             ${collapsed ? html`` : group.items.map(item => this.renderItem(item))}`;
     }
 
+    // Counts over all open tasks, independent of the "today or overdue" filter.
+    getStats(items) {
+        const pad = n => String(n).padStart(2, '0');
+        const now = new Date();
+        const today = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
+        let overdue = 0;
+        let due = 0;
+
+        items.forEach(item => {
+            const day = item.due && item.due.date ? String(item.due.date).slice(0, 10) : '';
+            if (!day) {
+                return;
+            }
+            if (day < today) {
+                overdue++;
+            } else if (day === today) {
+                due++;
+            }
+        });
+
+        return {
+            open: items.length,
+            overdue,
+            today: due,
+            completed: this.itemsCompleted ? this.itemsCompleted.length : 0,
+        };
+    }
+
+    renderStats(stats) {
+        const style = this.config.header_stats;
+
+        if (style === 'chips') {
+            return html`<div class="todoist-stats">
+                ${stats.overdue
+                    ? html`<span class="todoist-chip overdue"><ha-icon icon="mdi:alert-circle-outline"></ha-icon><b>${stats.overdue}</b> overdue</span>`
+                    : html``}
+                ${stats.today
+                    ? html`<span class="todoist-chip today"><ha-icon icon="mdi:calendar-today"></ha-icon><b>${stats.today}</b> today</span>`
+                    : html``}
+                <span class="todoist-chip"><ha-icon icon="mdi:format-list-checks"></ha-icon><b>${stats.open}</b> open</span>
+                ${stats.completed
+                    ? html`<span class="todoist-chip"><ha-icon icon="mdi:check"></ha-icon><b>${stats.completed}</b> completed</span>`
+                    : html``}
+            </div>`;
+        }
+
+        if (style === 'line') {
+            const total = stats.open + stats.completed;
+            const percent = total ? Math.round(stats.completed / total * 100) : 0;
+
+            return html`<div class="todoist-stats-line">
+                <div>
+                    ${stats.open} open
+                    ${stats.today ? html` · <span class="today">${stats.today} today</span>` : html``}
+                    ${stats.overdue ? html` · <span class="overdue">${stats.overdue} overdue</span>` : html``}
+                </div>
+                ${stats.completed
+                    ? html`<div class="todoist-progress"><div style="width: ${percent}%"></div></div>
+                        <div class="todoist-progress-label">${stats.completed} of ${total} completed</div>`
+                    : html``}
+            </div>`;
+        }
+
+        return html``;
+    }
+
     render() {
         if (!this.hass || !this.config) {
             return html``;
@@ -1209,6 +1290,7 @@ class TodoistCard extends LitElement {
         
         // API v1 returns "tasks" instead of "items" in some endpoints.
         let items = this.isTodo ? this._todoItems : (state.attributes.items || state.attributes.tasks || []);
+        const stats = this.getStats(items);
         if (this.config.only_today_overdue) {
             items = items.filter(item => {
                 if (item.due && item.due.date) {
@@ -1247,7 +1329,8 @@ class TodoistCard extends LitElement {
             ${(this.config.show_header === undefined) || (this.config.show_header !== false)
                 ? html`<h1 class="card-header">
                     <div class="name">${state.attributes.friendly_name}</div>
-                </h1>`
+                </h1>
+                ${this.renderStats(stats)}`
                 : html``}
             ${notice ? html`<div class="todoist-notice">${notice}</div>` : html``}
             <div class="todoist-list">
@@ -1310,7 +1393,80 @@ class TodoistCard extends LitElement {
                 flex-direction: column;
                 padding: 15px;
             }
-            
+
+            .todoist-stats {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+                padding: 8px 16px 0;
+            }
+
+            .todoist-chip {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 3px 10px 3px 6px;
+                border-radius: 999px;
+                font-size: 13px;
+                background: var(--secondary-background-color);
+                color: var(--secondary-text-color);
+            }
+
+            .todoist-chip ha-icon {
+                --mdc-icon-size: 16px;
+            }
+
+            .todoist-chip b {
+                font-weight: 500;
+                color: var(--primary-text-color);
+            }
+
+            .todoist-chip.overdue {
+                background: color-mix(in srgb, var(--error-color, #db4437) 18%, transparent);
+                color: var(--error-color, #db4437);
+            }
+
+            .todoist-chip.today {
+                background: color-mix(in srgb, var(--warning-color, #ffa600) 18%, transparent);
+                color: var(--warning-color, #ffa600);
+            }
+
+            .todoist-chip.overdue b, .todoist-chip.today b {
+                color: inherit;
+            }
+
+            .todoist-stats-line {
+                padding: 4px 16px 0;
+                font-size: 14px;
+                color: var(--secondary-text-color);
+            }
+
+            .todoist-stats-line .today {
+                color: var(--warning-color, #ffa600);
+            }
+
+            .todoist-stats-line .overdue {
+                color: var(--error-color, #db4437);
+            }
+
+            .todoist-progress {
+                height: 6px;
+                margin-top: 8px;
+                border-radius: 3px;
+                background: var(--secondary-background-color);
+                overflow: hidden;
+            }
+
+            .todoist-progress > div {
+                height: 100%;
+                background: var(--success-color, #43a047);
+            }
+
+            .todoist-progress-label {
+                margin-top: 4px;
+                font-size: 12px;
+            }
+
             .todoist-list-empty {
                 padding: 15px;
                 text-align: center;
