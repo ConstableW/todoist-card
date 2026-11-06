@@ -92,7 +92,7 @@ mode: extended
 | `mode`               | `string`  | `quick`      | `quick`: complete and delete only. `extended`: clicking a task opens the [edit dialog](#extended-mode).    |
 | `show_header`        | `boolean` | `true`       | Show the name of the list as card header.                                                                  |
 | `show_completed`     | `integer` | `5`          | Number of recently completed tasks shown at the end of the list (0 to disable).                            |
-| `header_stats`       | `string`  | `none`       | Statistics below the header: `chips` (overdue, today, open, completed) or `line` (one line with progress bar). Counts cover all open tasks, even with `only_today_overdue`. |
+| `header_stats`       | `string`  | `none`       | Statistics below the header: `chips` (overdue, today, open, completed) or `line` (one line with progress bar). Counts cover all open tasks, even with `only_today_overdue`. Click _overdue_ or _today_ to filter the list, click again (or _open_) to show everything. |
 | `show_item_add`      | `boolean` | `true`       | Show the text input for adding new tasks.                                                                  |
 | `show_item_close`    | `boolean` | `true`       | Show the _complete_ and _uncomplete_ buttons.                                                              |
 | `show_item_delete`   | `boolean` | `true`       | Show the _delete_ buttons.                                                                                 |

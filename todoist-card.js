@@ -765,9 +765,10 @@ class TodoistCard extends LitElement {
         return {
             hass: Object,
             config: Object,
+            _statFilter: String,
         };
     }
-    
+
     static getConfigElement() {
         return document.createElement('todoist-card-editor');
     }
@@ -1212,21 +1213,32 @@ class TodoistCard extends LitElement {
     }
 
     // Counts over all open tasks, independent of the "today or overdue" filter.
-    getStats(items) {
+    dueClass(item) {
         const pad = n => String(n).padStart(2, '0');
         const now = new Date();
         const today = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
+        const day = item.due && item.due.date ? String(item.due.date).slice(0, 10) : '';
+
+        if (!day) {
+            return '';
+        }
+
+        return day < today ? 'overdue' : (day === today ? 'today' : '');
+    }
+
+    toggleStatFilter(name) {
+        this._statFilter = this._statFilter === name ? undefined : name;
+    }
+
+    getStats(items) {
         let overdue = 0;
         let due = 0;
 
         items.forEach(item => {
-            const day = item.due && item.due.date ? String(item.due.date).slice(0, 10) : '';
-            if (!day) {
-                return;
-            }
-            if (day < today) {
+            const kind = this.dueClass(item);
+            if (kind === 'overdue') {
                 overdue++;
-            } else if (day === today) {
+            } else if (kind === 'today') {
                 due++;
             }
         });
@@ -1245,12 +1257,12 @@ class TodoistCard extends LitElement {
         if (style === 'chips') {
             return html`<div class="todoist-stats">
                 ${stats.overdue
-                    ? html`<span class="todoist-chip overdue"><ha-icon icon="mdi:alert-circle-outline"></ha-icon><b>${stats.overdue}</b> overdue</span>`
+                    ? html`<span class="todoist-chip clickable overdue ${this._statFilter === 'overdue' ? 'active' : ''}" @click=${() => this.toggleStatFilter('overdue')}><ha-icon icon="mdi:alert-circle-outline"></ha-icon><b>${stats.overdue}</b> overdue</span>`
                     : html``}
                 ${stats.today
-                    ? html`<span class="todoist-chip today"><ha-icon icon="mdi:calendar-today"></ha-icon><b>${stats.today}</b> today</span>`
+                    ? html`<span class="todoist-chip clickable today ${this._statFilter === 'today' ? 'active' : ''}" @click=${() => this.toggleStatFilter('today')}><ha-icon icon="mdi:calendar-today"></ha-icon><b>${stats.today}</b> today</span>`
                     : html``}
-                <span class="todoist-chip"><ha-icon icon="mdi:format-list-checks"></ha-icon><b>${stats.open}</b> open</span>
+                <span class="todoist-chip clickable ${this._statFilter ? '' : 'active'}" @click=${() => { this._statFilter = undefined; }}><ha-icon icon="mdi:format-list-checks"></ha-icon><b>${stats.open}</b> open</span>
                 ${stats.completed
                     ? html`<span class="todoist-chip"><ha-icon icon="mdi:check"></ha-icon><b>${stats.completed}</b> completed</span>`
                     : html``}
@@ -1264,8 +1276,8 @@ class TodoistCard extends LitElement {
             return html`<div class="todoist-stats-line">
                 <div>
                     ${stats.open} open
-                    ${stats.today ? html` · <span class="today">${stats.today} today</span>` : html``}
-                    ${stats.overdue ? html` · <span class="overdue">${stats.overdue} overdue</span>` : html``}
+                    ${stats.today ? html` · <span class="today clickable ${this._statFilter === 'today' ? 'active' : ''}" @click=${() => this.toggleStatFilter('today')}>${stats.today} today</span>` : html``}
+                    ${stats.overdue ? html` · <span class="overdue clickable ${this._statFilter === 'overdue' ? 'active' : ''}" @click=${() => this.toggleStatFilter('overdue')}>${stats.overdue} overdue</span>` : html``}
                 </div>
                 ${stats.completed
                     ? html`<div class="todoist-progress"><div style="width: ${percent}%"></div></div>
@@ -1304,7 +1316,14 @@ class TodoistCard extends LitElement {
                 return false;
             });
         }
-        
+
+        // Filter chosen by clicking a statistic. Only active while the statistics are shown.
+        const statFilter = this.config.header_stats && this.config.header_stats !== 'none'
+            && this.config.show_header !== false && stats[this._statFilter] ? this._statFilter : undefined;
+        if (statFilter) {
+            items = items.filter(item => this.dueClass(item) === statFilter);
+        }
+
         if (!this.collapsedLoaded) {
             this.loadCollapsed();
         }
@@ -1433,6 +1452,19 @@ class TodoistCard extends LitElement {
 
             .todoist-chip.overdue b, .todoist-chip.today b {
                 color: inherit;
+            }
+
+            .clickable {
+                cursor: pointer;
+                user-select: none;
+            }
+
+            .todoist-chip.active {
+                box-shadow: inset 0 0 0 1px currentColor;
+            }
+
+            .todoist-stats-line .clickable.active {
+                text-decoration: underline;
             }
 
             .todoist-stats-line {
