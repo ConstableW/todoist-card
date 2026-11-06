@@ -15,6 +15,18 @@ class TodoistCardEditor extends LitElement {
     get _schema() {
         return [
             {name: 'entity', required: true, selector: {entity: {domain: 'sensor'}}},
+            {
+                name: 'mode',
+                selector: {
+                    select: {
+                        mode: 'dropdown',
+                        options: [
+                            {value: 'quick', label: 'Quick (complete and delete only)'},
+                            {value: 'extended', label: 'Extended (click a task to edit it)'},
+                        ],
+                    },
+                },
+            },
             {name: 'show_completed', selector: {number: {min: 0, max: 15, mode: 'box'}}},
             {name: 'show_header', selector: {boolean: {}}},
             {name: 'show_sections', selector: {boolean: {}}},
@@ -28,6 +40,7 @@ class TodoistCardEditor extends LitElement {
 
     get _data() {
         return {
+            mode: 'quick',
             show_completed: 5,
             show_header: true,
             show_sections: true,
@@ -43,6 +56,7 @@ class TodoistCardEditor extends LitElement {
     _label(schema) {
         const labels = {
             entity: 'Entity (required)',
+            mode: 'Mode',
             show_completed: 'Number of completed tasks shown at the end of the list (0 to disable)',
             show_header: 'Show header',
             show_sections: 'Group tasks by Todoist sections (collapsible)',
@@ -79,6 +93,292 @@ class TodoistCardEditor extends LitElement {
             .computeLabel=${(schema) => this._label(schema)}
             @value-changed=${this._valueChanged}
         ></ha-form>`;
+    }
+}
+
+
+class TodoistCardDialog extends LitElement {
+    static get properties() {
+        return {
+            hass: Object,
+            item: Object,
+            sections: Array,
+            onSave: Object,
+            onDelete: Object,
+            _data: Object,
+            _busy: Boolean,
+            _error: String,
+            _confirmDelete: Boolean,
+        };
+    }
+
+    constructor() {
+        super();
+
+        this.sections = [];
+        this._busy = false;
+        this._error = '';
+        this._confirmDelete = false;
+        this._onKeydown = (e) => {
+            if (e.key === 'Escape') {
+                this.close();
+            }
+        };
+    }
+
+    connectedCallback() {
+        super.connectedCallback();
+        window.addEventListener('keydown', this._onKeydown);
+    }
+
+    disconnectedCallback() {
+        window.removeEventListener('keydown', this._onKeydown);
+        super.disconnectedCallback();
+    }
+
+    willUpdate(changed) {
+        if (changed.has('item') && this.item) {
+            const item = this.item;
+
+            this._orig = {
+                content: item.content || '',
+                description: item.description || '',
+                due_string: item.due ? (item.due.string || item.due.date || '') : '',
+                priority: String(item.priority || 1),
+                labels: (item.labels || []).join(', '),
+                section_id: item.section_id || '',
+            };
+            this._data = {...this._orig};
+        }
+    }
+
+    close() {
+        this.remove();
+    }
+
+    get _schema() {
+        return [
+            {name: 'content', required: true, selector: {text: {}}},
+            {name: 'description', selector: {text: {multiline: true}}},
+            {name: 'due_string', selector: {text: {}}},
+            {
+                name: 'priority',
+                selector: {
+                    select: {
+                        mode: 'dropdown',
+                        options: [
+                            {value: '4', label: 'P1 (highest)'},
+                            {value: '3', label: 'P2'},
+                            {value: '2', label: 'P3'},
+                            {value: '1', label: 'P4 (none)'},
+                        ],
+                    },
+                },
+            },
+            ...(this.sections.length
+                ? [{
+                    name: 'section_id',
+                    selector: {
+                        select: {
+                            mode: 'dropdown',
+                            options: [
+                                {value: '', label: 'No section'},
+                                ...this.sections.map(section => ({value: section.id, label: section.name})),
+                            ],
+                        },
+                    },
+                }]
+                : []),
+            {name: 'labels', selector: {text: {}}},
+        ];
+    }
+
+    _label(schema) {
+        const labels = {
+            content: 'Title',
+            description: 'Description',
+            due_string: 'Date (e.g. "tomorrow", "every monday", empty = none)',
+            priority: 'Priority',
+            section_id: 'Section',
+            labels: 'Labels (comma separated)',
+        };
+
+        return labels[schema.name] || schema.name;
+    }
+
+    _valueChanged(e) {
+        this._data = e.detail.value;
+    }
+
+    async _save() {
+        const data = this._data;
+        const orig = this._orig;
+
+        if (!data.content || !data.content.trim()) {
+            this._error = 'The title must not be empty.';
+            return;
+        }
+
+        const changes = {};
+        if (data.content.trim() !== orig.content) {
+            changes.content = data.content.trim();
+        }
+        if ((data.description || '') !== orig.description) {
+            changes.description = data.description || '';
+        }
+        if ((data.due_string || '').trim() !== orig.due_string) {
+            changes.due_string = (data.due_string || '').trim();
+        }
+        if (String(data.priority) !== orig.priority) {
+            changes.priority = Number(data.priority);
+        }
+        if ((data.labels || '') !== orig.labels) {
+            changes.labels = (data.labels || '').split(',').map(label => label.trim()).filter(Boolean);
+        }
+        if ((data.section_id || '') !== orig.section_id) {
+            changes.section_id = data.section_id || '';
+        }
+
+        if (!Object.keys(changes).length) {
+            this.close();
+            return;
+        }
+
+        this._busy = true;
+        this._error = '';
+
+        try {
+            await this.onSave(changes);
+            this.close();
+        } catch (err) {
+            this._busy = false;
+            this._error = (err && err.message) || String(err);
+        }
+    }
+
+    async _delete() {
+        if (!this._confirmDelete) {
+            this._confirmDelete = true;
+            return;
+        }
+
+        this._busy = true;
+
+        try {
+            await this.onDelete();
+            this.close();
+        } catch (err) {
+            this._busy = false;
+            this._error = (err && err.message) || String(err);
+        }
+    }
+
+    render() {
+        if (!this.item || !this._data) {
+            return html``;
+        }
+
+        return html`<div class="backdrop" @click=${(e) => e.target === e.currentTarget && this.close()}>
+            <div class="dialog" role="dialog" aria-modal="true" aria-label="Edit task">
+                <div class="title">Edit task</div>
+                <ha-form
+                    .hass=${this.hass}
+                    .data=${this._data}
+                    .schema=${this._schema}
+                    .computeLabel=${(schema) => this._label(schema)}
+                    @value-changed=${this._valueChanged}
+                ></ha-form>
+                ${this._error ? html`<div class="error">${this._error}</div>` : html``}
+                <div class="actions">
+                    <button class="delete" ?disabled=${this._busy} @click=${this._delete}>
+                        ${this._confirmDelete ? 'Really delete?' : 'Delete'}
+                    </button>
+                    <span class="spacer"></span>
+                    <button ?disabled=${this._busy} @click=${this.close}>Cancel</button>
+                    <button class="primary" ?disabled=${this._busy} @click=${this._save}>Save</button>
+                </div>
+            </div>
+        </div>`;
+    }
+
+    static get styles() {
+        return css`
+            :host {
+                position: fixed;
+                inset: 0;
+                z-index: 9999;
+            }
+
+            .backdrop {
+                position: absolute;
+                inset: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: rgba(0, 0, 0, 0.5);
+            }
+
+            .dialog {
+                box-sizing: border-box;
+                width: min(520px, calc(100vw - 32px));
+                max-height: calc(100vh - 32px);
+                overflow-y: auto;
+                padding: 20px;
+                border-radius: var(--ha-card-border-radius, 12px);
+                background: var(--card-background-color, #1c1c1c);
+                color: var(--primary-text-color, #fff);
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+                font-family: var(--paper-font-body1_-_font-family, inherit);
+            }
+
+            .title {
+                margin-bottom: 16px;
+                font-size: 20px;
+                font-weight: 500;
+            }
+
+            .error {
+                margin-top: 12px;
+                color: var(--error-color, #db4437);
+            }
+
+            .actions {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                margin-top: 20px;
+            }
+
+            .spacer {
+                flex: 1;
+            }
+
+            button {
+                padding: 8px 16px;
+                border: 1px solid var(--divider-color, #555);
+                border-radius: 8px;
+                background: transparent;
+                color: var(--primary-text-color, #fff);
+                font-size: 14px;
+                cursor: pointer;
+            }
+
+            button.primary {
+                border-color: var(--primary-color, #03a9f4);
+                background: var(--primary-color, #03a9f4);
+                color: var(--text-primary-color, #fff);
+            }
+
+            button.delete {
+                border-color: var(--error-color, #db4437);
+                color: var(--error-color, #db4437);
+            }
+
+            button:disabled {
+                opacity: 0.5;
+                cursor: default;
+            }
+        `;
     }
 }
 
@@ -306,6 +606,86 @@ class TodoistCard extends LitElement {
         });
     }
 
+    getSections(state) {
+        return (state.attributes.sections || [])
+            .filter(section => !section.is_deleted && !section.is_archived)
+            .sort((a, b) => (a.section_order ?? a.order ?? 0) - (b.section_order ?? b.order ?? 0));
+    }
+
+    async sendCommands(commands) {
+        if (!commands.length) {
+            return;
+        }
+
+        const result = await this.hass.callService('rest_command', 'todoist', {
+            url: 'sync',
+            payload: 'commands=' + encodeURIComponent(JSON.stringify(commands)),
+        }, undefined, true, true);
+
+        // rest_command returns the HTTP response; the Sync API reports command errors in sync_status.
+        const status = result && result.response && result.response.content
+            && result.response.content.sync_status;
+        if (status && typeof status === 'object') {
+            const failed = Object.values(status).find(v => v !== 'ok');
+            if (failed) {
+                throw new Error((failed && failed.error) || 'Todoist rejected the change.');
+            }
+        }
+
+        await this.hass.callService('homeassistant', 'update_entity', {
+            entity_id: this.config.entity,
+        });
+    }
+
+    openEditor(item) {
+        const state = this.hass.states[this.config.entity];
+        const dialog = document.createElement('todoist-card-dialog');
+
+        dialog.hass = this.hass;
+        dialog.item = item;
+        dialog.sections = this.getSections(state);
+        dialog.onSave = (changes) => this.saveItem(item, state, changes);
+        dialog.onDelete = () => this.sendCommands([{
+            'type': 'item_delete',
+            'uuid': this.getUUID(),
+            'args': {'id': item.id},
+        }]);
+
+        document.body.appendChild(dialog);
+    }
+
+    saveItem(item, state, changes) {
+        const commands = [];
+        const update = {};
+
+        ['content', 'description', 'priority', 'labels'].forEach(key => {
+            if (changes[key] !== undefined) {
+                update[key] = changes[key];
+            }
+        });
+        if (changes.due_string !== undefined) {
+            update.due = changes.due_string ? {string: changes.due_string} : null;
+        }
+        if (Object.keys(update).length) {
+            commands.push({
+                'type': 'item_update',
+                'uuid': this.getUUID(),
+                'args': {id: item.id, ...update},
+            });
+        }
+        if (changes.section_id !== undefined) {
+            commands.push({
+                'type': 'item_move',
+                'uuid': this.getUUID(),
+                'args': changes.section_id
+                    ? {id: item.id, section_id: changes.section_id}
+                    : {id: item.id, project_id: state.state},
+            });
+        }
+
+        return this.sendCommands(commands);
+    }
+
     renderItem(item) {
         return html`<div class="todoist-item">
                             ${(this.config.show_item_close === undefined) || (this.config.show_item_close !== false)
@@ -318,7 +698,10 @@ class TodoistCard extends LitElement {
                                 : html`<ha-icon
                                     icon="mdi:circle-medium"
                                 ></ha-icon>`}
-                            <div class="todoist-item-text">
+                            <div
+                                class="todoist-item-text ${this.config.mode === 'extended' ? 'todoist-item-clickable' : ''}"
+                                @click=${() => this.config.mode === 'extended' && this.openEditor(item)}
+                            >
                                 ${item.description
                                     ? html`<span class="todoist-item-content">${item.content}</span>
                                            <span class="todoist-item-description">${item.description}</span>`
@@ -392,11 +775,7 @@ class TodoistCard extends LitElement {
 
         const byOrder = (a, b) => (a.child_order ?? 0) - (b.child_order ?? 0);
         const showSections = this.config.show_sections !== false;
-        const sections = showSections
-            ? (state.attributes.sections || [])
-                .filter(section => !section.is_deleted && !section.is_archived)
-                .sort((a, b) => (a.section_order ?? a.order ?? 0) - (b.section_order ?? b.order ?? 0))
-            : [];
+        const sections = showSections ? this.getSections(state) : [];
         const knownSections = new Set(sections.map(section => section.id));
 
         const rootItems = items.filter(item => !item.section_id || !knownSections.has(item.section_id)).sort(byOrder);
@@ -498,6 +877,12 @@ class TodoistCard extends LitElement {
                 text-overflow: ellipsis;
             }
 
+            .todoist-item-clickable {
+                cursor: pointer;
+                flex: 1;
+                min-width: 0;
+            }
+
             .todoist-item-content {
                 display: block;
                 margin: -12px 0 -25px;
@@ -575,6 +960,7 @@ class TodoistCard extends LitElement {
 }
 
 customElements.define('todoist-card-editor', TodoistCardEditor);
+customElements.define('todoist-card-dialog', TodoistCardDialog);
 customElements.define('todoist-card', TodoistCard);
 
 window.customCards = window.customCards || [];

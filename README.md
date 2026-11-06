@@ -87,6 +87,7 @@ Typical example of using this card in YAML config would look like this:
 ```yaml
 type: 'custom:todoist-card'
 entity: sensor.to_do_list
+mode: quick
 show_header: true
 show_sections: true
 show_completed: 5
@@ -103,6 +104,7 @@ Here is what every option means:
 | -------------------- | :-------: | :----------: | -------------------------------------------------------------------------------------------------------------------------------- |
 | `type`               | `string`  | **required** | `custom:todoist-card`                                                                                                            |
 | `entity`             | `string`  | **required** | An entity_id within the `sensor` domain.                                                                                         |
+| `mode`               | `string`  | `quick`      | `quick`: tap the circle to complete a task. `extended`: additionally click a task to open an edit dialog (see below).            |
 | `show_completed`     | `integer` | `5`          | Number of completed tasks shown at the end of the list (0 to disable).                                                           |
 | `show_header`        | `boolean` | `true`       | Show friendly name of the selected `sensor` in the card header.                                                                  |
 | `show_sections`      | `boolean` | `true`       | Group tasks by Todoist sections. Sections are collapsible and show their task count (needs `sections` in `json_attributes`). |
@@ -113,6 +115,19 @@ Here is what every option means:
 | `only_today_overdue` | `boolean` | `false`      | Only show tasks that are overdue or due today.                                                                                   |
 
 > Note that the completed tasks list is cleared when the page is refreshed.
+
+## Extended mode
+
+With `mode: extended` clicking a task's text opens an edit dialog. The circle still completes the task.
+
+You can change the title, description, date, priority, section and labels, or delete the task.
+
+- **Date** is free text that Todoist parses itself, e.g. `tomorrow`, `every monday` or `15 dec`. Leave it empty to remove the date. Recurring tasks keep their rule as long as you don't touch the field.
+- **Section** moves the task to another section of the project (choose _No section_ to move it to the top level). It is only shown when the sensor provides `sections`.
+- **Labels** are comma separated.
+- Deadlines, reminders, locations and comments are not supported.
+
+Errors reported by Todoist are shown in the dialog.
 
 ## Actions
 
