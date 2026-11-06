@@ -93,7 +93,7 @@ mode: extended
 | `mode`               | `string`  | `quick`      | `quick`: complete and delete only. `extended`: clicking a task opens the [edit dialog](#extended-mode).    |
 | `show_header`        | `boolean` | `true`       | Show the name of the list as card header.                                                                  |
 | `show_completed`     | `integer` | `5`          | Number of recently completed tasks shown at the end of the list (0 to disable).                            |
-| `header_stats`       | `string`  | `none`       | Statistics below the header: `chips` (overdue, today, open, completed) or `line` (one line with progress bar). Counts cover all open tasks, even with `only_today_overdue`. Click _overdue_ or _today_ to filter the list, click again (or _open_) to show everything. |
+| `header_stats`       | `string`  | `none`       | Statistics below the header: `chips` (overdue, today, open, completed) or `line` (one line with progress bar). Counts follow the list, also with `only_today_overdue`. Click _overdue_ or _today_ to filter the list, click again (or _open_) to show everything. |
 | `show_item_add`      | `boolean` | `true`       | Show the text input for adding new tasks.                                                                  |
 | `show_item_close`    | `boolean` | `true`       | Show the _complete_ and _uncomplete_ buttons.                                                              |
 | `show_item_delete`   | `boolean` | `true`       | Show the _delete_ buttons.                                                                                 |
@@ -135,7 +135,7 @@ header_stats: chips
 
 Click **overdue** or **today** to show only those tasks. Click the chip again, or **open**, to show everything. The filter is only kept until the page is reloaded.
 
-- The counts cover all open tasks, even if `only_today_overdue` is active.
+- The counts follow the list: with `only_today_overdue` active, _open_ only counts tasks that are due today or overdue.
 - _Completed_ counts the recently completed tasks of this browser page (see `show_completed`), not your Todoist history.
 - The statistics belong to the header and disappear with `show_header: false`.
 

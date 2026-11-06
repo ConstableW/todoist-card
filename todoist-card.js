@@ -1306,7 +1306,6 @@ class TodoistCard extends LitElement {
         
         // API v1 returns "tasks" instead of "items" in some endpoints.
         let items = this.isTodo ? this._todoItems : (state.attributes.items || state.attributes.tasks || []);
-        const stats = this.getStats(items);
         if (this.config.only_today_overdue) {
             items = items.filter(item => {
                 if (item.due && item.due.date) {
@@ -1320,6 +1319,9 @@ class TodoistCard extends LitElement {
                 return false;
             });
         }
+
+        // Counts follow what the list shows (so only_today_overdue is respected), before the click filter.
+        const stats = this.getStats(items);
 
         // Filter chosen by clicking a statistic. Only active while the statistics are shown.
         const statFilter = this.config.header_stats && this.config.header_stats !== 'none'
