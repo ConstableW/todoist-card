@@ -266,7 +266,7 @@ class TodoistCardDialog extends LitElement {
         this._busy = false;
         this._error = '';
         this._onKeydown = (e) => {
-            if (e.key === 'Escape' && !document.querySelector('todoist-card-confirm')) {
+            if (e.key === 'Escape' && !this.getRootNode().querySelector('todoist-card-confirm')) {
                 this.close();
             }
         };
@@ -1044,6 +1044,14 @@ class TodoistCard extends LitElement {
         await this.refresh();
     }
 
+    // Dialogs live inside the Home Assistant root like HA's own dialogs. Outside of it, HA components such as
+    // the date picker do not get their locale and formats from the frontend context.
+    mountDialog(dialog) {
+        const root = document.querySelector('home-assistant');
+
+        (root && root.shadowRoot ? root.shadowRoot : document.body).appendChild(dialog);
+    }
+
     openEditor(item) {
         const state = this.hass.states[this.config.entity];
         const dialog = document.createElement('todoist-card-dialog');
@@ -1058,7 +1066,7 @@ class TodoistCard extends LitElement {
         // Deleting from the edit dialog goes through the same two-step confirmation as the trash button.
         dialog.onDelete = () => this.confirmDelete(item, () => dialog.close());
 
-        document.body.appendChild(dialog);
+        this.mountDialog(dialog);
     }
 
     confirmDelete(item, onDone) {
@@ -1069,7 +1077,7 @@ class TodoistCard extends LitElement {
         dialog.onComplete = () => this.itemClose(item);
         dialog.onDelete = () => this.itemDelete(item);
 
-        document.body.appendChild(dialog);
+        this.mountDialog(dialog);
     }
 
     saveItem(item, state, changes) {
