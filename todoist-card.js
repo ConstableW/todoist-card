@@ -1,6 +1,7 @@
 import {LitElement, html, css} from 'https://cdn.jsdelivr.net/npm/lit@3.2.1/+esm';
 
 const NEW_SECTION = '__new_section__';
+const NO_SECTION = '__no_section__';
 
 class TodoistCardEditor extends LitElement {
     static get properties() {
@@ -307,7 +308,7 @@ class TodoistCardDialog extends LitElement {
                 due_string: item.due ? (item.due.string || item.due.date || '') : '',
                 priority: String(item.priority || 1),
                 labels: (item.labels || []).join(', '),
-                section_id: item.section_id || '',
+                section_id: item.section_id || NO_SECTION,
                 due_date: item.due && item.due.date ? String(item.due.date).slice(0, 10) : '',
             };
             this._data = {...this._orig};
@@ -333,6 +334,7 @@ class TodoistCardDialog extends LitElement {
             {name: 'due_string', selector: {text: {}}},
             {
                 name: 'priority',
+                required: true,
                 selector: {
                     select: {
                         mode: 'dropdown',
@@ -352,7 +354,7 @@ class TodoistCardDialog extends LitElement {
                         select: {
                             mode: 'dropdown',
                             options: [
-                                {value: '', label: 'No section'},
+                                {value: NO_SECTION, label: 'No section'},
                                 ...this.sections.map(section => ({value: section.id, label: section.name})),
                                 {value: NEW_SECTION, label: '+ New section...'},
                             ],
@@ -365,7 +367,7 @@ class TodoistCardDialog extends LitElement {
                         select: {
                             mode: 'dropdown',
                             options: [
-                                {value: '', label: 'No section'},
+                                {value: NO_SECTION, label: 'No section'},
                                 {value: NEW_SECTION, label: '+ New section...'},
                             ],
                         },
@@ -432,8 +434,8 @@ class TodoistCardDialog extends LitElement {
             if ((data.labels || '') !== orig.labels) {
                 changes.labels = (data.labels || '').split(',').map(label => label.trim()).filter(Boolean);
             }
-            if ((data.section_id || '') !== orig.section_id) {
-                changes.section_id = data.section_id || '';
+            if ((data.section_id || NO_SECTION) !== orig.section_id) {
+                changes.section_id = data.section_id === NO_SECTION ? '' : data.section_id;
                 if (data.section_id === NEW_SECTION) {
                     changes.new_section_name = data.new_section_name.trim();
                 }
