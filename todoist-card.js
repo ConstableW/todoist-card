@@ -368,7 +368,7 @@ class TodoistCardDialog extends LitElement {
             content: 'Title',
             description: 'Description',
             due_date: 'Due date',
-            due_string: 'Date (e.g. "tomorrow", "every monday", empty = none)',
+            due_string: this.readonly ? 'Date' : 'Date (e.g. "tomorrow", "every monday", empty = none)',
             priority: 'Priority',
             section_id: 'Section',
             new_section_name: 'Name of the new section',
