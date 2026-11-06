@@ -14,8 +14,8 @@ class TodoistCardEditor extends LitElement {
         this.config = config;
     }
 
-    get _schema() {
-        return this._filterSchema([
+    get _fields() {
+        return [
             {name: 'entity', required: true, selector: {entity: {domain: ['todo', 'sensor']}}},
             {
                 name: 'mode',
@@ -37,60 +37,104 @@ class TodoistCardEditor extends LitElement {
             {name: 'show_item_close', selector: {boolean: {}}},
             {name: 'show_item_delete', selector: {boolean: {}}},
             {name: 'only_today_overdue', selector: {boolean: {}}},
-        ]);
+        ];
     }
 
-    // Options that need the REST setup are hidden for todo entities (basic mode).
-    _filterSchema(schema) {
-        const entity = (this.config && this.config.entity) || '';
-
-        return entity.startsWith('todo.')
-            ? schema.filter(field => !['show_sections', 'use_quick_add'].includes(field.name))
-            : schema;
-    }
-
-    _hint() {
+    // What the selected entity can do. Options that cannot work are not shown.
+    _capabilities() {
         const entity = (this.config && this.config.entity) || '';
 
         if (!entity) {
-            return {
-                type: 'info',
-                text: 'Choose a todo entity of the Todoist integration (basic mode, no setup needed) '
-                    + 'or the REST sensor from the README (all features).',
-            };
+            return {kind: 'none'};
         }
 
         if (entity.startsWith('todo.')) {
-            return {
-                type: 'info',
-                text: 'Basic mode (Todoist integration): tasks, add, complete, rename, date, description and delete. '
-                    + 'Sections, priority and labels need the REST setup, see the README.',
-            };
+            return {kind: 'todo', tasks: true, write: true, sections: false, quickAdd: false};
         }
 
         const state = this.hass.states[entity];
         if (!state) {
-            return {type: 'warning', text: 'The entity ' + entity + ' was not found.'};
+            return {kind: 'missing'};
+        }
+
+        const write = !!(this.hass.services.rest_command && this.hass.services.rest_command.todoist);
+
+        return {
+            kind: 'rest',
+            tasks: !!(state.attributes.items || state.attributes.tasks),
+            sections: !!state.attributes.sections,
+            write,
+            quickAdd: write,
+        };
+    }
+
+    _visible(name, caps) {
+        if (name === 'entity') {
+            return true;
+        }
+        if (!caps.tasks) {
+            return false;
+        }
+
+        switch (name) {
+            case 'show_sections':
+                return caps.sections;
+            case 'use_quick_add':
+                return caps.quickAdd;
+            case 'mode':
+            case 'show_completed':
+            case 'show_item_add':
+            case 'show_item_close':
+            case 'show_item_delete':
+                return caps.write;
+            default:
+                return true;
+        }
+    }
+
+    _hint(caps) {
+        const entity = (this.config && this.config.entity) || '';
+
+        switch (caps.kind) {
+            case 'none':
+                return {
+                    type: 'info',
+                    text: 'Choose a todo entity of the Todoist integration (basic mode, no setup needed) '
+                        + 'or the REST sensor from the README (all features).',
+                };
+            case 'missing':
+                return {type: 'warning', text: 'The entity ' + entity + ' was not found.'};
+            case 'todo':
+                return {
+                    type: 'info',
+                    text: 'Basic mode (Todoist integration): tasks, add, complete, rename, date, description and delete. '
+                        + 'Sections, priority, labels and Quick Add need the REST setup, see the README.',
+                };
+        }
+
+        if (!caps.tasks) {
+            return {
+                type: 'warning',
+                text: 'This sensor provides no tasks. Add items or tasks to json_attributes of the sensor and check '
+                    + 'the project ID, see the README (Setup). Until then no options are available.',
+            };
         }
 
         const missing = [];
-        if (!state.attributes.items && !state.attributes.tasks) {
-            missing.push('the items/tasks attribute of the sensor (json_attributes)');
+        if (!caps.write) {
+            missing.push('rest_command.todoist (needed to add, complete, edit and delete tasks, so these options are hidden)');
         }
-        if (!state.attributes.sections) {
-            missing.push('the sections attribute (needed for sections)');
-        }
-        if (!(this.hass.services.rest_command && this.hass.services.rest_command.todoist)) {
-            missing.push('rest_command.todoist (needed to change tasks)');
+        if (!caps.sections) {
+            missing.push('the sections attribute of the sensor (needed for sections)');
         }
 
         return missing.length
             ? {
                 type: 'warning',
-                text: 'Not all features are available. Missing: ' + missing.join(', ')
+                text: 'The REST setup is incomplete. Missing: ' + missing.join(', ')
                     + '. See the README (Setup), or choose a todo entity of the Todoist integration.',
             }
-            : {type: 'success', text: 'REST setup is complete, all features are available.'};
+            : null;
     }
 
     get _data() {
@@ -141,22 +185,35 @@ class TodoistCardEditor extends LitElement {
             return html``;
         }
 
-        const hint = this._hint();
+        const caps = this._capabilities();
+        const fields = this._fields.filter(field => this._visible(field.name, caps));
+        const top = fields.filter(field => field.name === 'entity');
+        const rest = fields.filter(field => field.name !== 'entity');
+        const hint = this._hint(caps);
 
         return html`<ha-form
                 .hass=${this.hass}
                 .data=${this._data}
-                .schema=${this._schema}
+                .schema=${top}
                 .computeLabel=${(schema) => this._label(schema)}
                 @value-changed=${this._valueChanged}
             ></ha-form>
-            <div class="hint ${hint.type}">${hint.text}</div>`;
+            ${hint ? html`<div class="hint ${hint.type}">${hint.text}</div>` : html``}
+            ${rest.length
+                ? html`<ha-form
+                    .hass=${this.hass}
+                    .data=${this._data}
+                    .schema=${rest}
+                    .computeLabel=${(schema) => this._label(schema)}
+                    @value-changed=${this._valueChanged}
+                ></ha-form>`
+                : html``}`;
     }
 
     static get styles() {
         return css`
             .hint {
-                margin-top: 16px;
+                margin: 16px 0;
                 padding: 12px 16px;
                 border-radius: 8px;
                 border-left: 4px solid var(--info-color, #039be5);
@@ -777,11 +834,6 @@ class TodoistCard extends LitElement {
         if (!state.attributes.items && !state.attributes.tasks) {
             return 'The sensor has no tasks. Check json_attributes of the sensor (items or tasks) and the project ID, see the README. '
                 + 'Without any setup you can also choose a todo entity of the Todoist integration.';
-        }
-
-        if (!(this.hass.services.rest_command && this.hass.services.rest_command.todoist)) {
-            return 'rest_command.todoist is not configured, so changes will fail. See the README (Setup), '
-                + 'or choose a todo entity of the Todoist integration.';
         }
 
         return '';
