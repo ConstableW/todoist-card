@@ -1,13 +1,12 @@
 > [!NOTE]
 > This is a maintained fork of [grinstantin/todoist-card](https://github.com/grinstantin/todoist-card), which was discontinued.
 > It has been migrated to the Todoist API v1, because the Sync API v9 and REST API v2 were shut down on 2026-02-10.
-> **If you used the old configuration, update your `configuration.yaml` as described below.**
+> **If you used the old configuration, see [Migrating from the original card](#migrating-from-the-original-card).**
 
 # Todoist Card
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg)](https://github.com/hacs/integration)
-![hacs_badge](https://img.shields.io/github/v/release/ConstableW/todoist-card)
-![hacs_badge](https://img.shields.io/github/license/ConstableW/todoist-card)
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
+![License](https://img.shields.io/github/license/ConstableW/todoist-card)
 
 Todoist card for [Home Assistant](https://www.home-assistant.io) Lovelace UI. This card displays items from selected Todoist project.
 
@@ -21,7 +20,7 @@ Add this fork as a custom repository in [HACS](https://hacs.xyz): *HACS → ⋮ 
 
 ### Manual
 
-1. Download `todoist-card.js` file from the [latest release](https://github.com/ConstableW/todoist-card/releases/latest).
+1. Download [`todoist-card.js`](https://raw.githubusercontent.com/ConstableW/todoist-card/main/todoist-card.js).
 2. Put `todoist-card.js` file into your `config/www` folder.
 3. Add a reference to `todoist-card.js` in Lovelace. There's two way to do that:
    1. **Using UI:** _Configuration_ → _Lovelace Dashboards_ → _Resources_ → Click Plus button → Set _Url_ as `/local/todoist-card.js` → Set _Resource type_ as `JavaScript Module`.
@@ -118,6 +117,27 @@ Here is what every option means:
 - _Plus_ "uncompletes" selected task, adding it back to the list.
 - _Trash bin_ deletes selected task (gray one deletes it only from the list of completed items, not from Todoist archive).
 - _Input_ adds new item to the list after pressing `Enter`.
+
+## Migrating from the original card
+
+Only the Home Assistant configuration changes, the card config stays the same:
+
+| Before (`grinstantin/todoist-card`)                                | Now                                                         |
+| ------------------------------------------------------------------ | ----------------------------------------------------------- |
+| sensor `resource: .../sync/v9/projects/get_data` + `project_id` param | sensor `resource: .../api/v1/projects/TODOIST_PROJECT_ID/full` (no `params`) |
+| `rest_command` url `.../sync/v9/{{ url }}`                          | `.../api/v1/{{ url }}`                                      |
+| Quick Add via `quick/add`                                           | Quick Add via `tasks/quick`                                 |
+
+Also add `tasks` to the sensor's `json_attributes` (see above). Then reload the configuration or restart Home Assistant and refresh the browser (clear cache if the old card is still shown).
+
+## Troubleshooting
+
+- **Card is empty / "No uncompleted tasks!"**: open _Developer tools → States_, check the sensor and look at its attributes. It must contain `project` and `items` or `tasks`. Make sure the token in `secrets.yaml` starts with `Bearer ` and the project ID is correct.
+- **Sensor is `unknown` or `unavailable`**: check the Home Assistant log for REST errors. HTTP 401/403 means a wrong token, 404/400 a wrong project ID.
+- **Adding or completing tasks does nothing**: verify that the `rest_command.todoist` service exists (_Developer tools → Actions_) and was loaded after the restart.
+- **Old version still shown**: reload the page with cache cleared (Ctrl+F5) or update the resource in _Settings → Dashboards → Resources_.
+
+Please report problems in the [issue tracker](https://github.com/ConstableW/todoist-card/issues) and include the sensor's attributes.
 
 ## License
 
