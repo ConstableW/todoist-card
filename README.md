@@ -5,6 +5,8 @@
 
 A [Home Assistant](https://www.home-assistant.io) Lovelace card that shows the tasks of a Todoist project, grouped by section, and lets you complete, add, edit and delete them.
 
+It works in two ways: **basic** with the official Todoist integration (no YAML, no token), or **full** with a small REST setup that unlocks sections, priorities, labels and more. See [Choose your setup](#choose-your-setup).
+
 > [!NOTE]
 > This is a maintained fork of [grinstantin/todoist-card](https://github.com/grinstantin/todoist-card), which was discontinued.
 > It uses the **Todoist API v1**, because the Sync API v9 and REST API v2 used by the original card were shut down on 2026-02-10.
@@ -18,6 +20,7 @@ A [Home Assistant](https://www.home-assistant.io) Lovelace card that shows the t
 ## Features
 
 - Shows the tasks of one Todoist project, including descriptions.
+- **Two ways to connect:** the official Todoist integration (basic, no setup) or a REST sensor (all features). The editor and the card tell you what is missing.
 - **Sections:** tasks are grouped by Todoist section. Sections are collapsible, show their number of tasks and remember their state.
 - **Complete** tasks with one click, **undo** completed tasks (list of recently completed tasks).
 - **Add** tasks, optionally with Todoist's [Quick Add](https://todoist.com/help/articles/task-quick-add) syntax.
@@ -29,7 +32,7 @@ A [Home Assistant](https://www.home-assistant.io) Lovelace card that shows the t
 ## Requirements
 
 - Home Assistant with the UI-based dashboards (Lovelace). Developed against the current frontend (custom card using `ha-form`, `ha-card`, `ha-icon`, `ha-icon-button`).
-- A Todoist account and a [personal API token](https://app.todoist.com/app/settings/integrations/developer).
+- A Todoist account. For the **basic** way: the official [Todoist integration](https://www.home-assistant.io/integrations/todoist/) of Home Assistant. For the **full** way: a [personal API token](https://app.todoist.com/app/settings/integrations/developer).
 - The browser needs internet access to `cdn.jsdelivr.net`, because the card loads the [Lit](https://lit.dev) library from there.
 
 ## Installation
@@ -66,7 +69,32 @@ https://cdn.jsdelivr.net/gh/ConstableW/todoist-card@COMMIT/todoist-card.js
 
 Replace `COMMIT` with the short hash of the [latest commit](https://github.com/ConstableW/todoist-card/commits/main). Do not use `@main`: jsDelivr caches branches for up to 12 hours and ignores `?v=` query strings, so you would not see updates. Do not use `raw.githubusercontent.com` either, it serves the wrong MIME type and the browser refuses to load it as a module.
 
+## Choose your setup
+
+|                                                            | Basic (Todoist integration) | Full (REST sensor) |
+| ---------------------------------------------------------- | :-------------------------: | :----------------: |
+| Setup effort                                               | none, just pick the entity  | YAML, token, restart |
+| Entity you choose in the card                              | `todo.*`                    | `sensor.*`         |
+| Show tasks, descriptions                                   | yes                         | yes                |
+| Add, complete, undo, delete (with confirmation)            | yes                         | yes                |
+| Edit title, description, date                              | yes (date picker)           | yes (date as text, recurring) |
+| Sections with task count, collapsible                      | no                          | yes                |
+| Move to / create sections                                  | no                          | yes                |
+| Priority, labels                                           | no                          | yes                |
+| Quick Add                                                  | no                          | yes                |
+
+The card detects the type from the entity. If you pick a REST sensor and something is missing (the tasks, the sections or `rest_command.todoist`), the editor and the card show what to fix.
+
 ## Setup
+
+### Basic: official Todoist integration (no YAML)
+
+1. Add the [Todoist integration](https://www.home-assistant.io/integrations/todoist/) in _Settings → Devices & services_ and enter your API token there. It creates a `todo.*` entity per project (for example `todo.inbox`).
+2. Add the card (see [Add the card](#2-add-the-card)) and select that `todo.*` entity.
+
+That is all. Options that only work with the REST setup (sections, Quick Add) are hidden in the editor for `todo.*` entities. The edit dialog shows title, description and due date.
+
+### Full: REST sensor
 
 The card talks to Todoist through two things in your Home Assistant configuration: a REST **sensor** that reads the project, and a **`rest_command`** that sends changes.
 
@@ -142,7 +170,7 @@ only_today_overdue: false
 | Name                 |   Type    |   Default    | Description                                                                                                                                  |
 | -------------------- | :-------: | :----------: | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `type`               | `string`  | **required** | `custom:todoist-card`                                                                                                                        |
-| `entity`             | `string`  | **required** | The sensor from the setup above (an entity in the `sensor` domain).                                                                          |
+| `entity`             | `string`  | **required** | A `todo.*` entity of the Todoist integration (basic) or the `sensor.*` from the full setup.                                                  |
 | `mode`               | `string`  | `quick`      | `quick`: complete and delete only. `extended`: clicking a task opens the [edit dialog](#extended-mode).                                      |
 | `show_header`        | `boolean` | `true`       | Show the friendly name of the sensor as card header.                                                                                         |
 | `show_sections`      | `boolean` | `true`       | Group tasks by Todoist section. Needs `sections` in the sensor's `json_attributes`.                                                          |
@@ -216,8 +244,10 @@ Then:
   Open _Developer tools → States_ and look at the sensor. Its attributes must contain `project` and `items` or `tasks`. Check that the token in `secrets.yaml` starts with `Bearer ` and that the project ID is correct.
 - **The sensor is `unknown` or `unavailable`**
   Check the Home Assistant log for REST errors. HTTP 401/403 means a wrong token, 400/404 a wrong project ID.
+- **The card shows a notice about the sensor or `rest_command.todoist`**
+  The REST setup is incomplete. Complete it as described above, or select a `todo.*` entity of the Todoist integration for the basic mode.
 - **No sections are shown**
-  `sections` is missing in `json_attributes` or `show_sections` is `false`. Check the sensor attributes for a `sections` list.
+  You use a `todo.*` entity (no sections there), or `sections` is missing in `json_attributes` or `show_sections` is `false`. Check the sensor attributes for a `sections` list.
 - **Adding, completing or editing does nothing**
   Check that the action `rest_command.todoist` exists (_Developer tools → Actions_) and that you restarted Home Assistant after adding it. Errors from Todoist are shown in the edit dialog; for other actions check the log.
 - **Log message "State attributes ... exceed maximum size of 16384 bytes"**

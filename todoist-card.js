@@ -87,7 +87,7 @@ class TodoistCardEditor extends LitElement {
         return missing.length
             ? {
                 type: 'warning',
-                text: 'Only basic features are available. Missing: ' + missing.join(', ')
+                text: 'Not all features are available. Missing: ' + missing.join(', ')
                     + '. See the README (Setup), or choose a todo entity of the Todoist integration.',
             }
             : {type: 'success', text: 'REST setup is complete, all features are available.'};
