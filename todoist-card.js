@@ -15,8 +15,8 @@ class TodoistCardEditor extends LitElement {
     }
 
     get _schema() {
-        return [
-            {name: 'entity', required: true, selector: {entity: {domain: 'sensor'}}},
+        return this._filterSchema([
+            {name: 'entity', required: true, selector: {entity: {domain: ['todo', 'sensor']}}},
             {
                 name: 'mode',
                 selector: {
@@ -37,7 +37,60 @@ class TodoistCardEditor extends LitElement {
             {name: 'show_item_close', selector: {boolean: {}}},
             {name: 'show_item_delete', selector: {boolean: {}}},
             {name: 'only_today_overdue', selector: {boolean: {}}},
-        ];
+        ]);
+    }
+
+    // Options that need the REST setup are hidden for todo entities (basic mode).
+    _filterSchema(schema) {
+        const entity = (this.config && this.config.entity) || '';
+
+        return entity.startsWith('todo.')
+            ? schema.filter(field => !['show_sections', 'use_quick_add'].includes(field.name))
+            : schema;
+    }
+
+    _hint() {
+        const entity = (this.config && this.config.entity) || '';
+
+        if (!entity) {
+            return {
+                type: 'info',
+                text: 'Choose a todo entity of the Todoist integration (basic mode, no setup needed) '
+                    + 'or the REST sensor from the README (all features).',
+            };
+        }
+
+        if (entity.startsWith('todo.')) {
+            return {
+                type: 'info',
+                text: 'Basic mode (Todoist integration): tasks, add, complete, rename, date, description and delete. '
+                    + 'Sections, priority and labels need the REST setup, see the README.',
+            };
+        }
+
+        const state = this.hass.states[entity];
+        if (!state) {
+            return {type: 'warning', text: 'The entity ' + entity + ' was not found.'};
+        }
+
+        const missing = [];
+        if (!state.attributes.items && !state.attributes.tasks) {
+            missing.push('the items/tasks attribute of the sensor (json_attributes)');
+        }
+        if (!state.attributes.sections) {
+            missing.push('the sections attribute (needed for sections)');
+        }
+        if (!(this.hass.services.rest_command && this.hass.services.rest_command.todoist)) {
+            missing.push('rest_command.todoist (needed to change tasks)');
+        }
+
+        return missing.length
+            ? {
+                type: 'warning',
+                text: 'Only basic features are available. Missing: ' + missing.join(', ')
+                    + '. See the README (Setup), or choose a todo entity of the Todoist integration.',
+            }
+            : {type: 'success', text: 'REST setup is complete, all features are available.'};
     }
 
     get _data() {
@@ -88,13 +141,38 @@ class TodoistCardEditor extends LitElement {
             return html``;
         }
 
+        const hint = this._hint();
+
         return html`<ha-form
-            .hass=${this.hass}
-            .data=${this._data}
-            .schema=${this._schema}
-            .computeLabel=${(schema) => this._label(schema)}
-            @value-changed=${this._valueChanged}
-        ></ha-form>`;
+                .hass=${this.hass}
+                .data=${this._data}
+                .schema=${this._schema}
+                .computeLabel=${(schema) => this._label(schema)}
+                @value-changed=${this._valueChanged}
+            ></ha-form>
+            <div class="hint ${hint.type}">${hint.text}</div>`;
+    }
+
+    static get styles() {
+        return css`
+            .hint {
+                margin-top: 16px;
+                padding: 12px 16px;
+                border-radius: 8px;
+                border-left: 4px solid var(--info-color, #039be5);
+                background: var(--secondary-background-color);
+                color: var(--primary-text-color);
+                font-size: 14px;
+            }
+
+            .hint.warning {
+                border-left-color: var(--warning-color, #ffa600);
+            }
+
+            .hint.success {
+                border-left-color: var(--success-color, #43a047);
+            }
+        `;
     }
 }
 
@@ -148,6 +226,7 @@ class TodoistCardDialog extends LitElement {
                 priority: String(item.priority || 1),
                 labels: (item.labels || []).join(', '),
                 section_id: item.section_id || '',
+                due_date: item.due && item.due.date ? String(item.due.date).slice(0, 10) : '',
             };
             this._data = {...this._orig};
         }
@@ -158,6 +237,14 @@ class TodoistCardDialog extends LitElement {
     }
 
     get _schema() {
+        if (this.mode === 'todo') {
+            return [
+                {name: 'content', required: true, selector: {text: {}}},
+                {name: 'description', selector: {text: {multiline: true}}},
+                {name: 'due_date', selector: {date: {}}},
+            ];
+        }
+
         return [
             {name: 'content', required: true, selector: {text: {}}},
             {name: 'description', selector: {text: {multiline: true}}},
@@ -213,6 +300,7 @@ class TodoistCardDialog extends LitElement {
         const labels = {
             content: 'Title',
             description: 'Description',
+            due_date: 'Due date',
             due_string: 'Date (e.g. "tomorrow", "every monday", empty = none)',
             priority: 'Priority',
             section_id: 'Section',
@@ -248,19 +336,25 @@ class TodoistCardDialog extends LitElement {
         if ((data.description || '') !== orig.description) {
             changes.description = data.description || '';
         }
-        if ((data.due_string || '').trim() !== orig.due_string) {
-            changes.due_string = (data.due_string || '').trim();
-        }
-        if (String(data.priority) !== orig.priority) {
-            changes.priority = Number(data.priority);
-        }
-        if ((data.labels || '') !== orig.labels) {
-            changes.labels = (data.labels || '').split(',').map(label => label.trim()).filter(Boolean);
-        }
-        if ((data.section_id || '') !== orig.section_id) {
-            changes.section_id = data.section_id || '';
-            if (data.section_id === NEW_SECTION) {
-                changes.new_section_name = data.new_section_name.trim();
+        if (this.mode === 'todo') {
+            if ((data.due_date || '') !== orig.due_date) {
+                changes.due_date = data.due_date || '';
+            }
+        } else {
+            if ((data.due_string || '').trim() !== orig.due_string) {
+                changes.due_string = (data.due_string || '').trim();
+            }
+            if (String(data.priority) !== orig.priority) {
+                changes.priority = Number(data.priority);
+            }
+            if ((data.labels || '') !== orig.labels) {
+                changes.labels = (data.labels || '').split(',').map(label => label.trim()).filter(Boolean);
+            }
+            if ((data.section_id || '') !== orig.section_id) {
+                changes.section_id = data.section_id || '';
+                if (data.section_id === NEW_SECTION) {
+                    changes.new_section_name = data.new_section_name.trim();
+                }
             }
         }
 
@@ -542,6 +636,11 @@ class TodoistCard extends LitElement {
         super();
 
         this.itemsCompleted = [];
+        this._todoItems = [];
+        this._todoError = '';
+        this._todoKey = undefined;
+        this._todoFetching = false;
+        this._todoRefetch = false;
         this.collapsed = new Set();
         this.collapsedLoaded = false;
     }
@@ -588,9 +687,104 @@ class TodoistCard extends LitElement {
     }
 
     static getStubConfig(hass) {
-        const entity = Object.keys((hass && hass.states) || {}).find(id => id.startsWith('sensor.'));
+        const states = (hass && hass.states) || {};
+        const ids = Object.keys(states);
+        // Prefer a REST sensor with tasks, otherwise fall back to the first todo entity.
+        const entity = ids.find(id => id.startsWith('sensor.') && (states[id].attributes.items || states[id].attributes.tasks))
+            || ids.find(id => id.startsWith('todo.'));
 
         return {entity: entity || ''};
+    }
+
+    // todo.* entities (official Todoist integration) work in basic mode, sensor.* entities need the REST setup.
+    get isTodo() {
+        return !!this.config && this.config.entity.startsWith('todo.');
+    }
+
+    todoCall(service, data) {
+        return this.hass.callService('todo', service, data, {entity_id: this.config.entity});
+    }
+
+    async fetchTodo() {
+        if (this._todoFetching) {
+            this._todoRefetch = true;
+            return;
+        }
+
+        this._todoFetching = true;
+
+        try {
+            const result = await this.hass.callWS({
+                type: 'call_service',
+                domain: 'todo',
+                service: 'get_items',
+                target: {entity_id: this.config.entity},
+                service_data: {status: ['needs_action']},
+                return_response: true,
+            });
+            const items = (result.response && result.response[this.config.entity]
+                && result.response[this.config.entity].items) || [];
+
+            this._todoItems = items.map(item => ({
+                id: item.uid,
+                content: item.summary,
+                description: item.description || '',
+                due: item.due ? {date: item.due} : null,
+                section_id: null,
+            }));
+            this._todoError = '';
+        } catch (e) {
+            this._todoError = (e && e.message) || String(e);
+        }
+
+        this._todoFetching = false;
+        this.requestUpdate();
+
+        if (this._todoRefetch) {
+            this._todoRefetch = false;
+            this.fetchTodo();
+        }
+    }
+
+    willUpdate() {
+        if (this.hass && this.isTodo) {
+            const state = this.hass.states[this.config.entity];
+            const key = state ? state.state + '|' + (state.last_reported || state.last_updated) : '';
+
+            if (key !== this._todoKey) {
+                this._todoKey = key;
+                this.fetchTodo();
+            }
+        }
+    }
+
+    async refresh() {
+        await this.hass.callService('homeassistant', 'update_entity', {
+            entity_id: this.config.entity,
+        });
+
+        if (this.isTodo) {
+            await this.fetchTodo();
+        }
+    }
+
+    // A hint that is shown above the list when something in the setup is missing.
+    getNotice(state) {
+        if (this.isTodo) {
+            return this._todoError ? 'Could not load the tasks: ' + this._todoError : '';
+        }
+
+        if (!state.attributes.items && !state.attributes.tasks) {
+            return 'The sensor has no tasks. Check json_attributes of the sensor (items or tasks) and the project ID, see the README. '
+                + 'Without any setup you can also choose a todo entity of the Todoist integration.';
+        }
+
+        if (!(this.hass.services.rest_command && this.hass.services.rest_command.todoist)) {
+            return 'rest_command.todoist is not configured, so changes will fail. See the README (Setup), '
+                + 'or choose a todo entity of the Todoist integration.';
+        }
+
+        return '';
     }
 
     setConfig(config) {
@@ -607,7 +801,7 @@ class TodoistCard extends LitElement {
 
     getCardSize() {
         const state = this.hass && this.hass.states[this.config.entity];
-        const items = state && (state.attributes.items || state.attributes.tasks);
+        const items = this.isTodo ? this._todoItems : (state && (state.attributes.items || state.attributes.tasks));
 
         return (items && items.length) || 1;
     }
@@ -628,6 +822,16 @@ class TodoistCard extends LitElement {
             let value = input.value;
             
             if (value && value.length > 1) {
+                if (this.isTodo) {
+                    this.todoCall('add_item', {item: value}).then(() => {
+                        input.value = '';
+
+                        return this.refresh();
+                    });
+
+                    return;
+                }
+
                 let stateValue = this.hass.states[this.config.entity].state || undefined;
                 
                 if (stateValue) {
@@ -680,74 +884,50 @@ class TodoistCard extends LitElement {
         }
     }
     
-    itemClose(item) {
-        let commands = [{
-            'type': 'item_close',
-            'uuid': this.getUUID(),
-            'args': {
-                'id': item.id,
-            },
-        }];
-        
-        return this.hass
-            .callService('rest_command', 'todoist', {
-                url: 'sync',
-                payload: 'commands=' + encodeURIComponent(JSON.stringify(commands)),
-            })
-            .then(response => {
-                if (this.itemsCompleted.length >= this.config.show_completed) {
-                    this.itemsCompleted.splice(0, this.itemsCompleted.length - this.config.show_completed + 1);
-                }
-                this.itemsCompleted.push(item);
+    markCompleted(item) {
+        const max = this.config.show_completed ?? 5;
 
-                this.hass.callService('homeassistant', 'update_entity', {
-                    entity_id: this.config.entity,
-                });
-            });
+        if (this.itemsCompleted.length >= max) {
+            this.itemsCompleted.splice(0, this.itemsCompleted.length - max + 1);
+        }
+        this.itemsCompleted.push(item);
+
+        return this.refresh();
+    }
+
+    restCommand(type, item) {
+        return this.hass.callService('rest_command', 'todoist', {
+            url: 'sync',
+            payload: 'commands=' + encodeURIComponent(JSON.stringify([{
+                'type': type,
+                'uuid': this.getUUID(),
+                'args': {'id': item.id},
+            }])),
+        });
+    }
+
+    itemClose(item) {
+        const done = this.isTodo
+            ? this.todoCall('update_item', {item: item.id, status: 'completed'})
+            : this.restCommand('item_close', item);
+
+        return done.then(() => this.markCompleted(item));
     }
 
     itemUncomplete(item) {
-        let commands = [{
-            'type': 'item_uncomplete',
-            'uuid': this.getUUID(),
-            'args': {
-                'id': item.id,
-            },
-        }];
-        
-        this.hass
-            .callService('rest_command', 'todoist', {
-                url: 'sync',
-                payload: 'commands=' + encodeURIComponent(JSON.stringify(commands)),
-            })
-            .then(response => {
-                this.itemDeleteCompleted(item);
+        const done = this.isTodo
+            ? this.todoCall('update_item', {item: item.id, status: 'needs_action'})
+            : this.restCommand('item_uncomplete', item);
 
-                // this.hass.callService('homeassistant', 'update_entity', {
-                //     entity_id: this.config.entity,
-                // });
-            });
+        return done.then(() => this.itemDeleteCompleted(item));
     }
-    
+
     itemDelete(item) {
-        let commands = [{
-            'type': 'item_delete',
-            'uuid': this.getUUID(),
-            'args': {
-                'id': item.id,
-            },
-        }];
-        
-        return this.hass
-            .callService('rest_command', 'todoist', {
-                url: 'sync',
-                payload: 'commands=' + encodeURIComponent(JSON.stringify(commands)),
-            })
-            .then(response => {
-                this.hass.callService('homeassistant', 'update_entity', {
-                    entity_id: this.config.entity,
-                });
-            });
+        const done = this.isTodo
+            ? this.todoCall('remove_item', {item: item.id})
+            : this.restCommand('item_delete', item);
+
+        return done.then(() => this.refresh());
     }
 
     itemDeleteCompleted(item) {
@@ -755,9 +935,7 @@ class TodoistCard extends LitElement {
             return v.id != item.id;
         });
 
-        this.hass.callService('homeassistant', 'update_entity', {
-            entity_id: this.config.entity,
-        });
+        return this.refresh();
     }
 
     getSections(state) {
@@ -786,9 +964,7 @@ class TodoistCard extends LitElement {
             }
         }
 
-        await this.hass.callService('homeassistant', 'update_entity', {
-            entity_id: this.config.entity,
-        });
+        await this.refresh();
     }
 
     openEditor(item) {
@@ -796,6 +972,7 @@ class TodoistCard extends LitElement {
         const dialog = document.createElement('todoist-card-dialog');
 
         dialog.hass = this.hass;
+        dialog.mode = this.isTodo ? 'todo' : 'rest';
         dialog.item = item;
         dialog.sections = this.getSections(state);
         dialog.onSave = (changes) => this.saveItem(item, state, changes);
@@ -818,6 +995,22 @@ class TodoistCard extends LitElement {
     }
 
     saveItem(item, state, changes) {
+        if (this.isTodo) {
+            const data = {item: item.id};
+
+            if (changes.content !== undefined) {
+                data.rename = changes.content;
+            }
+            if (changes.description !== undefined) {
+                data.description = changes.description;
+            }
+            if (changes.due_date !== undefined) {
+                data.due_date = changes.due_date || null;
+            }
+
+            return this.todoCall('update_item', data).then(() => this.refresh());
+        }
+
         const commands = [];
         const update = {};
 
@@ -929,7 +1122,7 @@ class TodoistCard extends LitElement {
         }
         
         // API v1 returns "tasks" instead of "items" in some endpoints.
-        let items = state.attributes.items || state.attributes.tasks || [];
+        let items = this.isTodo ? this._todoItems : (state.attributes.items || state.attributes.tasks || []);
         if (this.config.only_today_overdue) {
             items = items.filter(item => {
                 if (item.due && item.due.date) {
@@ -962,12 +1155,15 @@ class TodoistCard extends LitElement {
             // Empty sections are hidden only while the "today or overdue" filter is active.
             .filter(group => group.items.length || !this.config.only_today_overdue);
 
+        const notice = this.getNotice(state);
+
         return html`<ha-card>
             ${(this.config.show_header === undefined) || (this.config.show_header !== false)
                 ? html`<h1 class="card-header">
                     <div class="name">${state.attributes.friendly_name}</div>
                 </h1>`
                 : html``}
+            ${notice ? html`<div class="todoist-notice">${notice}</div>` : html``}
             <div class="todoist-list">
                 ${items.length
                     ? html`${rootItems.map(item => this.renderItem(item))}
@@ -1087,6 +1283,15 @@ class TodoistCard extends LitElement {
                 color: #808080;
             }
             
+            .todoist-notice {
+                margin: 8px 15px 0;
+                padding: 10px 14px;
+                border-radius: 8px;
+                border-left: 4px solid var(--warning-color, #ffa600);
+                background: var(--secondary-background-color);
+                font-size: 14px;
+            }
+
             .todoist-section {
                 display: flex;
                 align-items: center;
