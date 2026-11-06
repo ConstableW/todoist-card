@@ -1256,13 +1256,13 @@ class TodoistCard extends LitElement {
 
         if (style === 'chips') {
             return html`<div class="todoist-stats">
+                <span class="todoist-chip clickable ${this._statFilter ? '' : 'active'}" @click=${() => { this._statFilter = undefined; }}><ha-icon icon="mdi:format-list-checks"></ha-icon><b>${stats.open}</b> open</span>
                 ${stats.overdue
                     ? html`<span class="todoist-chip clickable overdue ${this._statFilter === 'overdue' ? 'active' : ''}" @click=${() => this.toggleStatFilter('overdue')}><ha-icon icon="mdi:alert-circle-outline"></ha-icon><b>${stats.overdue}</b> overdue</span>`
                     : html``}
                 ${stats.today
                     ? html`<span class="todoist-chip clickable today ${this._statFilter === 'today' ? 'active' : ''}" @click=${() => this.toggleStatFilter('today')}><ha-icon icon="mdi:calendar-today"></ha-icon><b>${stats.today}</b> today</span>`
                     : html``}
-                <span class="todoist-chip clickable ${this._statFilter ? '' : 'active'}" @click=${() => { this._statFilter = undefined; }}><ha-icon icon="mdi:format-list-checks"></ha-icon><b>${stats.open}</b> open</span>
                 ${stats.completed
                     ? html`<span class="todoist-chip"><ha-icon icon="mdi:check"></ha-icon><b>${stats.completed}</b> completed</span>`
                     : html``}
