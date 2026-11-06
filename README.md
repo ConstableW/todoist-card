@@ -120,10 +120,10 @@ Here is what every option means:
 
 With `mode: extended` clicking a task's text opens an edit dialog. The circle still completes the task.
 
-You can change the title, description, date, priority, section and labels, or delete the task.
+You can change the title, description, date, priority, section and labels, or complete the task with the _Complete task_ button. Deleting is not possible from the dialog.
 
 - **Date** is free text that Todoist parses itself, e.g. `tomorrow`, `every monday` or `15 dec`. Leave it empty to remove the date. Recurring tasks keep their rule as long as you don't touch the field.
-- **Section** moves the task to another section of the project (choose _No section_ to move it to the top level). It is only shown when the sensor provides `sections`.
+- **Section** moves the task to another section of the project (choose _No section_ to move it to the top level, or _+ New section..._ to create a section and move the task into it). It is only shown when the sensor provides `sections`.
 - **Labels** are comma separated.
 - Deadlines, reminders, locations and comments are not supported.
 
@@ -133,7 +133,7 @@ Errors reported by Todoist are shown in the dialog.
 
 - _Circle_ marks selected task as completed.
 - _Plus_ "uncompletes" selected task, adding it back to the list.
-- _Trash bin_ deletes selected task (gray one deletes it only from the list of completed items, not from Todoist archive).
+- _Trash bin_ asks whether to complete or delete the task; deleting needs a second confirmation. It deletes selected task (gray one deletes it only from the list of completed items, not from Todoist archive).
 - _Input_ adds new item to the list after pressing `Enter`.
 
 ## Migrating from the original card

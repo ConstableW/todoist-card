@@ -1,5 +1,7 @@
 import {LitElement, html, css} from 'https://cdn.jsdelivr.net/npm/lit@3.2.1/+esm';
 
+const NEW_SECTION = '__new_section__';
+
 class TodoistCardEditor extends LitElement {
     static get properties() {
         return {
@@ -104,11 +106,10 @@ class TodoistCardDialog extends LitElement {
             item: Object,
             sections: Array,
             onSave: Object,
-            onDelete: Object,
+            onComplete: Object,
             _data: Object,
             _busy: Boolean,
             _error: String,
-            _confirmDelete: Boolean,
         };
     }
 
@@ -118,7 +119,6 @@ class TodoistCardDialog extends LitElement {
         this.sections = [];
         this._busy = false;
         this._error = '';
-        this._confirmDelete = false;
         this._onKeydown = (e) => {
             if (e.key === 'Escape') {
                 this.close();
@@ -184,10 +184,25 @@ class TodoistCardDialog extends LitElement {
                             options: [
                                 {value: '', label: 'No section'},
                                 ...this.sections.map(section => ({value: section.id, label: section.name})),
+                                {value: NEW_SECTION, label: '+ New section...'},
                             ],
                         },
                     },
                 }]
+                : [{
+                    name: 'section_id',
+                    selector: {
+                        select: {
+                            mode: 'dropdown',
+                            options: [
+                                {value: '', label: 'No section'},
+                                {value: NEW_SECTION, label: '+ New section...'},
+                            ],
+                        },
+                    },
+                }]),
+            ...(this._data && this._data.section_id === NEW_SECTION
+                ? [{name: 'new_section_name', required: true, selector: {text: {}}}]
                 : []),
             {name: 'labels', selector: {text: {}}},
         ];
@@ -200,6 +215,7 @@ class TodoistCardDialog extends LitElement {
             due_string: 'Date (e.g. "tomorrow", "every monday", empty = none)',
             priority: 'Priority',
             section_id: 'Section',
+            new_section_name: 'Name of the new section',
             labels: 'Labels (comma separated)',
         };
 
@@ -216,6 +232,11 @@ class TodoistCardDialog extends LitElement {
 
         if (!data.content || !data.content.trim()) {
             this._error = 'The title must not be empty.';
+            return;
+        }
+
+        if (data.section_id === NEW_SECTION && !(data.new_section_name || '').trim()) {
+            this._error = 'Please enter a name for the new section.';
             return;
         }
 
@@ -237,6 +258,9 @@ class TodoistCardDialog extends LitElement {
         }
         if ((data.section_id || '') !== orig.section_id) {
             changes.section_id = data.section_id || '';
+            if (data.section_id === NEW_SECTION) {
+                changes.new_section_name = data.new_section_name.trim();
+            }
         }
 
         if (!Object.keys(changes).length) {
@@ -256,16 +280,12 @@ class TodoistCardDialog extends LitElement {
         }
     }
 
-    async _delete() {
-        if (!this._confirmDelete) {
-            this._confirmDelete = true;
-            return;
-        }
-
+    async _complete() {
         this._busy = true;
+        this._error = '';
 
         try {
-            await this.onDelete();
+            await this.onComplete();
             this.close();
         } catch (err) {
             this._busy = false;
@@ -280,7 +300,10 @@ class TodoistCardDialog extends LitElement {
 
         return html`<div class="backdrop" @click=${(e) => e.target === e.currentTarget && this.close()}>
             <div class="dialog" role="dialog" aria-modal="true" aria-label="Edit task">
-                <div class="title">Edit task</div>
+                <div class="title">
+                    <span>Edit task</span>
+                    <button class="close" aria-label="Close" @click=${this.close}>&times;</button>
+                </div>
                 <ha-form
                     .hass=${this.hass}
                     .data=${this._data}
@@ -290,8 +313,8 @@ class TodoistCardDialog extends LitElement {
                 ></ha-form>
                 ${this._error ? html`<div class="error">${this._error}</div>` : html``}
                 <div class="actions">
-                    <button class="delete" ?disabled=${this._busy} @click=${this._delete}>
-                        ${this._confirmDelete ? 'Really delete?' : 'Delete'}
+                    <button class="complete" ?disabled=${this._busy} @click=${this._complete}>
+                        Complete task
                     </button>
                     <span class="spacer"></span>
                     <button ?disabled=${this._busy} @click=${this.close}>Cancel</button>
@@ -332,9 +355,19 @@ class TodoistCardDialog extends LitElement {
             }
 
             .title {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
                 margin-bottom: 16px;
                 font-size: 20px;
                 font-weight: 500;
+            }
+
+            button.close {
+                padding: 0 8px;
+                border: none;
+                font-size: 28px;
+                line-height: 1;
             }
 
             .error {
@@ -374,11 +407,123 @@ class TodoistCardDialog extends LitElement {
                 color: var(--error-color, #db4437);
             }
 
+            button.complete {
+                border-color: var(--success-color, #43a047);
+                color: var(--success-color, #43a047);
+            }
+
             button:disabled {
                 opacity: 0.5;
                 cursor: default;
             }
         `;
+    }
+}
+
+
+class TodoistCardConfirm extends LitElement {
+    static get properties() {
+        return {
+            item: Object,
+            onComplete: Object,
+            onDelete: Object,
+            _step: String,
+            _busy: Boolean,
+            _error: String,
+        };
+    }
+
+    constructor() {
+        super();
+
+        this._step = 'choose';
+        this._busy = false;
+        this._error = '';
+        this._onKeydown = (e) => {
+            if (e.key === 'Escape') {
+                this.close();
+            }
+        };
+    }
+
+    connectedCallback() {
+        super.connectedCallback();
+        window.addEventListener('keydown', this._onKeydown);
+    }
+
+    disconnectedCallback() {
+        window.removeEventListener('keydown', this._onKeydown);
+        super.disconnectedCallback();
+    }
+
+    close() {
+        this.remove();
+    }
+
+    async _run(action) {
+        this._busy = true;
+        this._error = '';
+
+        try {
+            await action();
+            this.close();
+        } catch (err) {
+            this._busy = false;
+            this._error = (err && err.message) || String(err);
+        }
+    }
+
+    render() {
+        if (!this.item) {
+            return html``;
+        }
+
+        const confirming = this._step === 'confirm';
+
+        return html`<div class="backdrop" @click=${(e) => e.target === e.currentTarget && this.close()}>
+            <div class="dialog small" role="dialog" aria-modal="true">
+                <div class="title">${confirming ? 'Really delete?' : 'Delete or complete?'}</div>
+                <div class="text"><strong>${this.item.content}</strong></div>
+                <div class="text">
+                    ${confirming
+                        ? 'The task will be deleted permanently. This cannot be undone.'
+                        : 'Completing keeps the task in your Todoist history, deleting removes it.'}
+                </div>
+                ${this._error ? html`<div class="error">${this._error}</div>` : html``}
+                <div class="actions">
+                    ${confirming
+                        ? html`<button ?disabled=${this._busy} @click=${() => { this._step = 'choose'; }}>Back</button>
+                            <span class="spacer"></span>
+                            <button class="delete" ?disabled=${this._busy} @click=${() => this._run(this.onDelete)}>
+                                Yes, delete
+                            </button>`
+                        : html`<button ?disabled=${this._busy} @click=${this.close}>Cancel</button>
+                            <span class="spacer"></span>
+                            <button class="delete" ?disabled=${this._busy} @click=${() => { this._step = 'confirm'; }}>
+                                Delete
+                            </button>
+                            <button class="primary" ?disabled=${this._busy} @click=${() => this._run(this.onComplete)}>
+                                Complete
+                            </button>`}
+                </div>
+            </div>
+        </div>`;
+    }
+
+    static get styles() {
+        return [
+            TodoistCardDialog.styles,
+            css`
+                .dialog.small {
+                    width: min(400px, calc(100vw - 32px));
+                }
+
+                .text {
+                    margin: 8px 0;
+                    word-break: break-word;
+                }
+            `,
+        ];
     }
 }
 
@@ -535,7 +680,7 @@ class TodoistCard extends LitElement {
             },
         }];
         
-        this.hass
+        return this.hass
             .callService('rest_command', 'todoist', {
                 url: 'sync',
                 payload: 'commands=' + encodeURIComponent(JSON.stringify(commands)),
@@ -584,7 +729,7 @@ class TodoistCard extends LitElement {
             },
         }];
         
-        this.hass
+        return this.hass
             .callService('rest_command', 'todoist', {
                 url: 'sync',
                 payload: 'commands=' + encodeURIComponent(JSON.stringify(commands)),
@@ -645,11 +790,17 @@ class TodoistCard extends LitElement {
         dialog.item = item;
         dialog.sections = this.getSections(state);
         dialog.onSave = (changes) => this.saveItem(item, state, changes);
-        dialog.onDelete = () => this.sendCommands([{
-            'type': 'item_delete',
-            'uuid': this.getUUID(),
-            'args': {'id': item.id},
-        }]);
+        dialog.onComplete = () => this.itemClose(item);
+
+        document.body.appendChild(dialog);
+    }
+
+    confirmDelete(item) {
+        const dialog = document.createElement('todoist-card-confirm');
+
+        dialog.item = item;
+        dialog.onComplete = () => this.itemClose(item);
+        dialog.onDelete = () => this.itemDelete(item);
 
         document.body.appendChild(dialog);
     }
@@ -674,11 +825,23 @@ class TodoistCard extends LitElement {
             });
         }
         if (changes.section_id !== undefined) {
+            let sectionId = changes.section_id;
+
+            if (sectionId === NEW_SECTION) {
+                sectionId = this.getUUID();
+                commands.push({
+                    'type': 'section_add',
+                    'temp_id': sectionId,
+                    'uuid': this.getUUID(),
+                    'args': {name: changes.new_section_name, project_id: state.state},
+                });
+            }
+
             commands.push({
                 'type': 'item_move',
                 'uuid': this.getUUID(),
-                'args': changes.section_id
-                    ? {id: item.id, section_id: changes.section_id}
+                'args': sectionId
+                    ? {id: item.id, section_id: sectionId}
                     : {id: item.id, project_id: state.state},
             });
         }
@@ -710,7 +873,7 @@ class TodoistCard extends LitElement {
                             ${(this.config.show_item_delete === undefined) || (this.config.show_item_delete !== false)
                                 ? html`<ha-icon-button
                                     class="todoist-item-delete"
-                                    @click=${() => this.itemDelete(item)}
+                                    @click=${() => this.confirmDelete(item)}
                                 >
                                     <ha-icon icon="mdi:trash-can-outline"></ha-icon>
                                 </ha-icon-button>`
@@ -961,6 +1124,7 @@ class TodoistCard extends LitElement {
 
 customElements.define('todoist-card-editor', TodoistCardEditor);
 customElements.define('todoist-card-dialog', TodoistCardDialog);
+customElements.define('todoist-card-confirm', TodoistCardConfirm);
 customElements.define('todoist-card', TodoistCard);
 
 window.customCards = window.customCards || [];
