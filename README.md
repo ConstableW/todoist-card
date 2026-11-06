@@ -3,36 +3,36 @@
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://hacs.xyz)
 ![License](https://img.shields.io/github/license/ConstableW/todoist-card)
 
-A [Home Assistant](https://www.home-assistant.io) Lovelace card that shows the tasks of a Todoist project, grouped by section, and lets you complete, add, edit and delete them.
+A [Home Assistant](https://www.home-assistant.io) Lovelace card for your Todoist tasks. It uses the official [Todoist integration](https://www.home-assistant.io/integrations/todoist/), so there is **no YAML, no token handling and no restart** needed: install the card, pick the list, done.
 
-It works in two ways: **basic** with the official Todoist integration (no YAML, no token), or **full** with a small REST setup that unlocks sections, priorities, labels and more. See [Choose your setup](#choose-your-setup).
+You can show the tasks of a project, add, complete, edit and delete them.
+
+> Want sections, priorities and labels? That needs an additional REST setup, see [Full setup (REST)](docs/full-setup.md).
 
 > [!NOTE]
-> This is a maintained fork of [grinstantin/todoist-card](https://github.com/grinstantin/todoist-card), which was discontinued.
-> It uses the **Todoist API v1**, because the Sync API v9 and REST API v2 used by the original card were shut down on 2026-02-10.
-> If you used the original card, see [Migrating from the original card](#migrating-from-the-original-card).
+> This is a maintained fork of [grinstantin/todoist-card](https://github.com/grinstantin/todoist-card), which was discontinued. The original card stopped working when Todoist shut down the Sync API v9 and REST API v2 on 2026-02-10.
+> If you used the original card, see [Migrating from the original card](docs/full-setup.md#migrating-from-the-original-card).
 
 <p align="center">
-  <img src="docs/images/list.png" alt="Task list grouped by collapsible sections" width="320">
-  <img src="docs/images/edit-dialog.png" alt="Edit dialog" width="320">
+  <img src="docs/images/basic-list.png" alt="Todoist card showing a task list" width="380">
+  <img src="docs/images/basic-edit-dialog.png" alt="Edit dialog with title, description and due date" width="380">
 </p>
 
 ## Features
 
 - Shows the tasks of one Todoist project, including descriptions.
-- **Two ways to connect:** the official Todoist integration (basic, no setup) or a REST sensor (all features). The editor and the card tell you what is missing.
-- **Sections:** tasks are grouped by Todoist section. Sections are collapsible, show their number of tasks and remember their state.
-- **Complete** tasks with one click, **undo** completed tasks (list of recently completed tasks).
-- **Add** tasks, optionally with Todoist's [Quick Add](https://todoist.com/help/articles/task-quick-add) syntax.
-- **Extended mode:** click a task to edit title, description, date, priority, section and labels, create a new section, complete or delete the task.
-- Safe deletion: deleting always asks whether you want to complete the task instead and needs a second confirmation.
+- **Complete** tasks with one click and **undo** recently completed ones.
+- **Add** tasks with the input field at the bottom.
+- **Edit** a task by clicking it (extended mode): title, description and due date.
+- **Safe deletion:** deleting asks whether you want to complete the task instead and needs a second confirmation.
 - Filter for tasks that are due today or overdue.
-- Visual editor for the card configuration, works with sections view and masonry view.
+- Visual editor for the card. It only offers options that work with your selected entity and explains what is missing.
+- Works as a read-only list if changing tasks is not possible.
 
 ## Requirements
 
-- Home Assistant with the UI-based dashboards (Lovelace). Developed against the current frontend (custom card using `ha-form`, `ha-card`, `ha-icon`, `ha-icon-button`).
-- A Todoist account. For the **basic** way: the official [Todoist integration](https://www.home-assistant.io/integrations/todoist/) of Home Assistant. For the **full** way: a [personal API token](https://app.todoist.com/app/settings/integrations/developer).
+- Home Assistant with the UI-based dashboards (Lovelace). Developed and tested against the current frontend (2026.11).
+- The official [Todoist integration](https://www.home-assistant.io/integrations/todoist/) set up in Home Assistant. It creates one `todo` entity per Todoist project, for example `todo.inbox`.
 - The browser needs internet access to `cdn.jsdelivr.net`, because the card loads the [Lit](https://lit.dev) library from there.
 
 ## Installation
@@ -69,197 +69,84 @@ https://cdn.jsdelivr.net/gh/ConstableW/todoist-card@COMMIT/todoist-card.js
 
 Replace `COMMIT` with the short hash of the [latest commit](https://github.com/ConstableW/todoist-card/commits/main). Do not use `@main`: jsDelivr caches branches for up to 12 hours and ignores `?v=` query strings, so you would not see updates. Do not use `raw.githubusercontent.com` either, it serves the wrong MIME type and the browser refuses to load it as a module.
 
-## Choose your setup
-
-|                                                            | Basic (Todoist integration) | Full (REST sensor) |
-| ---------------------------------------------------------- | :-------------------------: | :----------------: |
-| Setup effort                                               | none, just pick the entity  | YAML, token, restart |
-| Entity you choose in the card                              | `todo.*`                    | `sensor.*`         |
-| Show tasks, descriptions                                   | yes                         | yes                |
-| Add, complete, undo, delete (with confirmation)            | yes                         | yes                |
-| Edit title, description, date                              | yes (date picker)           | yes (date as text, recurring) |
-| Sections with task count, collapsible                      | no                          | yes                |
-| Move to / create sections                                  | no                          | yes                |
-| Priority, labels                                           | no                          | yes                |
-| Quick Add                                                  | no                          | yes                |
-
-The card detects the type from the entity. If you pick a REST sensor and something is missing (the tasks, the sections or `rest_command.todoist`), the editor and the card show what to fix.
-
 ## Setup
 
-### Basic: official Todoist integration (no YAML)
-
-1. Add the [Todoist integration](https://www.home-assistant.io/integrations/todoist/) in _Settings → Devices & services_ and enter your API token there. It creates a `todo.*` entity per project (for example `todo.inbox`).
-2. Add the card (see [Add the card](#2-add-the-card)) and select that `todo.*` entity.
-
-That is all. Options that only work with the REST setup (sections, Quick Add) are hidden in the editor for `todo.*` entities. The edit dialog shows title, description and due date.
-
-### Full: REST sensor
-
-The card talks to Todoist through two things in your Home Assistant configuration: a REST **sensor** that reads the project, and a **`rest_command`** that sends changes.
-
-### 1. Home Assistant configuration
-
-Add this to `configuration.yaml`:
-
-```yaml
-sensor:
-  - platform: rest
-    name: To-do List
-    method: GET
-    resource: 'https://api.todoist.com/api/v1/projects/TODOIST_PROJECT_ID/full'
-    headers:
-      Authorization: !secret todoist_api_token
-    value_template: '{{ value_json[''project''][''id''] }}'
-    json_attributes:
-      - project
-      - items
-      - tasks
-      - sections
-    scan_interval: 30
-
-rest_command:
-  todoist:
-    method: post
-    url: 'https://api.todoist.com/api/v1/{{ url }}'
-    payload: '{{ payload }}'
-    headers:
-      Authorization: !secret todoist_api_token
-    content_type: 'application/x-www-form-urlencoded'
-```
-
-and to `secrets.yaml`:
-
-```yaml
-todoist_api_token: 'Bearer TODOIST_API_TOKEN'
-```
-
-Replace
-
-- `TODOIST_API_TOKEN` with your [token](https://app.todoist.com/app/settings/integrations/developer). Keep the `Bearer ` part unchanged.
-- `TODOIST_PROJECT_ID` with the ID of your project. You find it at the end of the project URL: `https://app.todoist.com/app/project/TODOIST_PROJECT_ID` (in API v1 it may contain letters).
-
-Then reload the configuration or restart Home Assistant.
-
-> **Why `items`, `tasks` and `sections`?** The card reads the tasks from `items` or, if that is missing, from `tasks`. `sections` is needed for the section grouping and for moving tasks between sections. Attributes that Todoist does not return are simply ignored.
-
-### 2. Add the card
-
-1. Open a dashboard, click the pencil icon (_Edit dashboard_) and then _Add card_.
-2. Choose **Custom: Todoist Card**.
-3. Select the sensor you created (`sensor.to_do_list`).
+1. **Set up the Todoist integration** in _Settings → Devices & services → Add integration → Todoist_ and enter your [API token](https://app.todoist.com/app/settings/integrations/developer) there. Home Assistant now has a `todo` entity for each of your projects.
+2. **Add the card.** Open a dashboard, click the pencil icon (_Edit dashboard_), then _Add card_ and choose **Custom: Todoist Card**.
+3. **Select the entity** of your project, for example `todo.inbox`. The editor lists all `todo` entities, so pick the one from the Todoist integration (it is named like your project).
 
 Or use YAML:
 
 ```yaml
 type: custom:todoist-card
-entity: sensor.to_do_list
+entity: todo.inbox
 mode: extended
-show_header: true
-show_sections: true
-show_completed: 5
-show_item_add: true
-use_quick_add: false
-show_item_close: true
-show_item_delete: true
-only_today_overdue: false
 ```
 
 ## Options
 
-| Name                 |   Type    |   Default    | Description                                                                                                                                  |
-| -------------------- | :-------: | :----------: | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `type`               | `string`  | **required** | `custom:todoist-card`                                                                                                                        |
-| `entity`             | `string`  | **required** | A `todo.*` entity of the Todoist integration (basic) or the `sensor.*` from the full setup.                                                  |
-| `mode`               | `string`  | `quick`      | `quick`: complete and delete only. `extended`: clicking a task opens the [edit dialog](#extended-mode).                                      |
-| `show_header`        | `boolean` | `true`       | Show the friendly name of the sensor as card header.                                                                                         |
-| `show_sections`      | `boolean` | `true`       | Group tasks by Todoist section. Needs `sections` in the sensor's `json_attributes`.                                                          |
-| `show_completed`     | `integer` | `5`          | Number of completed tasks shown at the end of the list (0 to disable).                                                                       |
-| `show_item_add`      | `boolean` | `true`       | Show the text input for adding new tasks.                                                                                                    |
-| `use_quick_add`      | `boolean` | `false`      | Add tasks with Todoist [Quick Add](https://todoist.com/help/articles/task-quick-add) (understands dates, labels, priorities in the text).    |
-| `show_item_close`    | `boolean` | `true`       | Show the _complete_ and _uncomplete_ buttons.                                                                                                |
-| `show_item_delete`   | `boolean` | `true`       | Show the _delete_ buttons.                                                                                                                   |
-| `only_today_overdue` | `boolean` | `false`      | Only show tasks that are due today or overdue. Empty sections are hidden while this is active.                                               |
+| Name                 |   Type    |   Default    | Description                                                                                                |
+| -------------------- | :-------: | :----------: | ---------------------------------------------------------------------------------------------------------- |
+| `type`               | `string`  | **required** | `custom:todoist-card`                                                                                      |
+| `entity`             | `string`  | **required** | A `todo` entity of the Todoist integration, for example `todo.inbox`.                                      |
+| `mode`               | `string`  | `quick`      | `quick`: complete and delete only. `extended`: clicking a task opens the [edit dialog](#extended-mode).    |
+| `show_header`        | `boolean` | `true`       | Show the name of the list as card header.                                                                  |
+| `show_completed`     | `integer` | `5`          | Number of recently completed tasks shown at the end of the list (0 to disable).                            |
+| `show_item_add`      | `boolean` | `true`       | Show the text input for adding new tasks.                                                                  |
+| `show_item_close`    | `boolean` | `true`       | Show the _complete_ and _uncomplete_ buttons.                                                              |
+| `show_item_delete`   | `boolean` | `true`       | Show the _delete_ buttons.                                                                                 |
+| `only_today_overdue` | `boolean` | `false`      | Only show tasks that are due today or overdue.                                                             |
 
-All options can also be set in the visual editor of the card.
+All options can also be set in the visual editor. The options `show_sections` and `use_quick_add` only work with the [full setup](docs/full-setup.md) and are hidden in the editor for `todo` entities.
 
 ## Usage
-
-### Sections
-
-Tasks that belong to a Todoist section are shown below a section header with an arrow and the number of tasks. Click the header to collapse or expand the section. The state is stored per sensor in the browser (`localStorage`), so it can differ between devices. Tasks without a section are shown first, without a header.
-
-Switch it off with `show_sections: false` to get one flat list.
 
 ### Actions
 
 - **Circle:** completes the task.
-- **Plus** (in the list of completed tasks): "uncompletes" the task and adds it back to the list.
+- **Plus** (in the list of recently completed tasks): "uncompletes" the task and adds it back to the list.
 - **Trash bin:** asks whether you want to **complete** or **delete** the task. Deleting needs a second confirmation. The gray trash bin in the list of completed tasks only removes the entry from that list, not from Todoist.
-- **Input field:** adds a new task after pressing `Enter`. New tasks are created at the top level of the project (not inside a section).
+- **Input field:** adds a new task after pressing `Enter`.
 
-<p align="center">
-  <img src="docs/images/delete-confirm.png" alt="Delete or complete prompt in front of the edit dialog" width="320">
-</p>
-
-> The list of completed tasks is kept in the browser page and is cleared when the page is reloaded.
+> The list of recently completed tasks is kept in the browser page and is cleared when the page is reloaded. Todoist itself keeps completed tasks in its history.
 
 ### Extended mode
 
 With `mode: extended` a click on the text of a task opens an edit dialog. The circle still completes the task directly.
 
-| Field       | Notes                                                                                                                                                                |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Title       | Required.                                                                                                                                                            |
-| Description | Optional, multi-line.                                                                                                                                                |
-| Date        | Free text that Todoist parses itself, e.g. `tomorrow`, `every monday` or `15 dec`. Empty removes the date. Recurring tasks keep their rule as long as you do not change this field. |
-| Priority    | P1 (highest) to P4 (none).                                                                                                                                           |
-| Section     | Moves the task to another section. _No section_ moves it to the top level of the project, _+ New section..._ creates a section with the name you enter and moves the task into it. |
-| Labels      | Comma separated.                                                                                                                                                     |
+| Field       | Notes                                                                                                                      |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Title       | Required.                                                                                                                  |
+| Description | Optional, multi-line.                                                                                                      |
+| Due date    | Date picker. Clear it to remove the date. Tasks with a time keep their time as long as you do not change the date field.  |
 
-Buttons: **Save** (only sends what you changed), **Cancel** or the × in the corner, **Complete task**, and **Delete** (with the same two-step confirmation as the trash bin). Errors reported by Todoist are shown in the dialog.
+Buttons: **Save** (only sends what you changed), **Cancel** or the × in the corner, **Complete task**, and **Delete** (with the same two-step confirmation as the trash bin).
 
-Not supported: deadlines, reminders, locations, comments, sub-task hierarchy, and picking a section when adding a new task.
+Priority, labels and sections cannot be changed with the Todoist integration. They are available in the [full setup](docs/full-setup.md).
 
-## Migrating from the original card
+### What the card does when something is missing
 
-Only the Home Assistant configuration changes, the card options stay the same.
+The card checks what is possible and adjusts itself, you do not have to configure that:
 
-| Before (`grinstantin/todoist-card`)                                      | Now                                                                          |
-| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| sensor `resource: .../sync/v9/projects/get_data` with a `project_id` param | sensor `resource: .../api/v1/projects/TODOIST_PROJECT_ID/full`, no `params`  |
-| `rest_command` url `.../sync/v9/{{ url }}`                                | `.../api/v1/{{ url }}`                                                       |
-| Quick Add via `quick/add`                                                 | Quick Add via `tasks/quick` (handled by the card)                            |
-| `json_attributes: project, items`                                         | `json_attributes: project, items, tasks, sections`                           |
-
-Then:
-
-1. Replace the card resource (HACS: remove the old repository, add this one).
-2. Reload the configuration or restart Home Assistant.
-3. Reload the browser with the cache cleared (Ctrl+F5; in the companion app: _Settings → Companion app → Troubleshooting → Reset frontend cache_).
+- If you select a `sensor` entity from the [full setup](docs/full-setup.md) but `rest_command.todoist` is missing, the card is **read-only**: no input, no complete or delete buttons, and a click on a task opens a details view instead of the edit dialog. The editor then hides the options that cannot work and shows one hint about what is missing.
+- If the entity provides no tasks at all, the card says so instead of showing an empty list.
 
 ## Troubleshooting
 
+- **The card does not show up in the card list or says "Custom element doesn't exist"**
+  The resource is not loaded. Check _Settings → Dashboards → Resources_ and reload the browser with the cache cleared (Ctrl+F5; in the companion app: _Settings → Companion app → Troubleshooting → Reset frontend cache_). The card also needs access to `cdn.jsdelivr.net` for the Lit library.
 - **The card is empty or shows "No uncompleted tasks!"**
-  Open _Developer tools → States_ and look at the sensor. Its attributes must contain `project` and `items` or `tasks`. Check that the token in `secrets.yaml` starts with `Bearer ` and that the project ID is correct.
-- **The sensor is `unknown` or `unavailable`**
-  Check the Home Assistant log for REST errors. HTTP 401/403 means a wrong token, 400/404 a wrong project ID.
-- **The card shows a notice about the sensor or `rest_command.todoist`**
-  The REST setup is incomplete. Complete it as described above, or select a `todo.*` entity of the Todoist integration for the basic mode.
-- **No sections are shown**
-  You use a `todo.*` entity (no sections there), or `sections` is missing in `json_attributes` or `show_sections` is `false`. Check the sensor attributes for a `sections` list.
-- **Adding, completing or editing does nothing**
-  Check that the action `rest_command.todoist` exists (_Developer tools → Actions_) and that you restarted Home Assistant after adding it. Errors from Todoist are shown in the edit dialog; for other actions check the log.
-- **Log message "State attributes ... exceed maximum size of 16384 bytes"**
-  Large projects produce big attributes. The card still works, only the database does not store the attributes. You can exclude the sensor from the [recorder](https://www.home-assistant.io/integrations/recorder/#configure-filter) to silence it.
-- **A change shows up late**
-  The card refreshes the sensor after each action, but Todoist may need a moment. The sensor is polled every `scan_interval` seconds.
+  Open _Developer tools → States_ and check the `todo` entity. Make sure you selected the entity of the right project. If the card shows "Could not load the tasks: ...", the message comes from Home Assistant.
+- **My lists are not in the entity picker**
+  The Todoist integration creates one `todo` entity per project. If it is missing, check _Settings → Devices & services → Todoist_.
+- **Changes made in Todoist show up late**
+  The Todoist integration polls Todoist regularly, so changes made elsewhere can take a moment. Changes made in the card appear immediately.
 - **The old version is still shown**
   Reload with the cache cleared (Ctrl+F5). With jsDelivr, use a commit hash in the URL instead of `@main`.
 - **The editor of the card looks broken**
   Make sure you run the current version of the card and clear the browser cache.
 
-Please report problems in the [issue tracker](https://github.com/ConstableW/todoist-card/issues) and include the attributes of your sensor (without private task names, if you like).
+Please report problems in the [issue tracker](https://github.com/ConstableW/todoist-card/issues).
 
 ## Development
 
