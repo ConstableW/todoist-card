@@ -107,6 +107,7 @@ class TodoistCardDialog extends LitElement {
             sections: Array,
             onSave: Object,
             onComplete: Object,
+            onDelete: Object,
             _data: Object,
             _busy: Boolean,
             _error: String,
@@ -120,7 +121,7 @@ class TodoistCardDialog extends LitElement {
         this._busy = false;
         this._error = '';
         this._onKeydown = (e) => {
-            if (e.key === 'Escape') {
+            if (e.key === 'Escape' && !document.querySelector('todoist-card-confirm')) {
                 this.close();
             }
         };
@@ -313,6 +314,9 @@ class TodoistCardDialog extends LitElement {
                 ></ha-form>
                 ${this._error ? html`<div class="error">${this._error}</div>` : html``}
                 <div class="actions">
+                    <button class="delete" ?disabled=${this._busy} @click=${() => this.onDelete()}>
+                        Delete
+                    </button>
                     <button class="complete" ?disabled=${this._busy} @click=${this._complete}>
                         Complete task
                     </button>
@@ -377,6 +381,7 @@ class TodoistCardDialog extends LitElement {
 
             .actions {
                 display: flex;
+                flex-wrap: wrap;
                 align-items: center;
                 gap: 8px;
                 margin-top: 20px;
@@ -427,6 +432,7 @@ class TodoistCardConfirm extends LitElement {
             item: Object,
             onComplete: Object,
             onDelete: Object,
+            onDone: Object,
             _step: String,
             _busy: Boolean,
             _error: String,
@@ -467,6 +473,9 @@ class TodoistCardConfirm extends LitElement {
         try {
             await action();
             this.close();
+            if (this.onDone) {
+                this.onDone();
+            }
         } catch (err) {
             this._busy = false;
             this._error = (err && err.message) || String(err);
@@ -791,14 +800,17 @@ class TodoistCard extends LitElement {
         dialog.sections = this.getSections(state);
         dialog.onSave = (changes) => this.saveItem(item, state, changes);
         dialog.onComplete = () => this.itemClose(item);
+        // Deleting from the edit dialog goes through the same two-step confirmation as the trash button.
+        dialog.onDelete = () => this.confirmDelete(item, () => dialog.close());
 
         document.body.appendChild(dialog);
     }
 
-    confirmDelete(item) {
+    confirmDelete(item, onDone) {
         const dialog = document.createElement('todoist-card-confirm');
 
         dialog.item = item;
+        dialog.onDone = onDone;
         dialog.onComplete = () => this.itemClose(item);
         dialog.onDelete = () => this.itemDelete(item);
 

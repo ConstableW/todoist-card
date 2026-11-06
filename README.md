@@ -120,7 +120,7 @@ Here is what every option means:
 
 With `mode: extended` clicking a task's text opens an edit dialog. The circle still completes the task.
 
-You can change the title, description, date, priority, section and labels, or complete the task with the _Complete task_ button. Deleting is not possible from the dialog.
+You can change the title, description, date, priority, section and labels, complete the task with _Complete task_, or delete it. Deleting asks whether you want to complete the task instead and needs a second confirmation.
 
 - **Date** is free text that Todoist parses itself, e.g. `tomorrow`, `every monday` or `15 dec`. Leave it empty to remove the date. Recurring tasks keep their rule as long as you don't touch the field.
 - **Section** moves the task to another section of the project (choose _No section_ to move it to the top level, or _+ New section..._ to create a section and move the task into it). It is only shown when the sensor provides `sections`.
