@@ -350,6 +350,7 @@ class TodoistCardDialog extends LitElement {
             ...(this.sections.length
                 ? [{
                     name: 'section_id',
+                    required: true,
                     selector: {
                         select: {
                             mode: 'dropdown',
@@ -363,6 +364,7 @@ class TodoistCardDialog extends LitElement {
                 }]
                 : [{
                     name: 'section_id',
+                    required: true,
                     selector: {
                         select: {
                             mode: 'dropdown',
