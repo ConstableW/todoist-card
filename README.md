@@ -186,3 +186,14 @@ The card is a single file, [`todoist-card.js`](todoist-card.js), without a build
 Original card by [Konstantin Grinkevich](https://github.com/grinstantin), maintained by [ConstableW](https://github.com/ConstableW) as a fork. Not affiliated with Doist or Todoist.
 
 MIT, see [LICENSE](LICENSE).
+
+---
+
+**Support & Issues:**  
+For support, feature requests or bug reports, please visit the [GitHub repository](https://github.com/ConstableW/todoist-card/issues).
+
+We welcome community contributions and feedback!
+
+Buy Me a Coffee – Maintainer:
+
+[![Buy Me a Coffee – Maintainer](https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png)](https://www.buymeacoffee.com/constablew)
