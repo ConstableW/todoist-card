@@ -1,4 +1,4 @@
-import {LitElement, html, css} from 'https://unpkg.com/lit-element@2.4.0/lit-element.js?module';
+import {LitElement, html, css} from 'https://cdn.jsdelivr.net/npm/lit@3.2.1/+esm';
 
 class TodoistCardEditor extends LitElement {
     static get properties() {
@@ -112,6 +112,10 @@ class TodoistCard extends LitElement {
         this.config = config;
     }
 
+    getGridOptions() {
+        return {columns: 12, min_columns: 6, rows: 'auto'};
+    }
+
     getCardSize() {
         const state = this.hass && this.hass.states[this.config.entity];
         const items = state && (state.attributes.items || state.attributes.tasks);
@@ -130,7 +134,7 @@ class TodoistCard extends LitElement {
     }
     
     itemAdd(e) {
-        if (e.which === 13) {
+        if (e.key === 'Enter') {
             let input = this.shadowRoot.getElementById('todoist-card-item-add');
             let value = input.value;
             
@@ -282,12 +286,12 @@ class TodoistCard extends LitElement {
         let items = state.attributes.items || state.attributes.tasks || [];
         if (this.config.only_today_overdue) {
             items = items.filter(item => {
-                if (item.due) {
-                    if (/^\d{4}-\d{2}-\d{2}$/.test(item.due.date)) {
-                        item.due.date += 'T00:00:00';
-                    }
-                    
-                    return (new Date()).setHours(23, 59, 59, 999) >= (new Date(item.due.date)).getTime();
+                if (item.due && item.due.date) {
+                    const date = /^\d{4}-\d{2}-\d{2}$/.test(item.due.date)
+                        ? item.due.date + 'T00:00:00'
+                        : item.due.date;
+
+                    return (new Date()).setHours(23, 59, 59, 999) >= (new Date(date)).getTime();
                 }
 
                 return false;
