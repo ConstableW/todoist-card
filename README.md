@@ -50,6 +50,7 @@ This card can be configured using Lovelace UI editor.
           - project
           - items
           - tasks
+          - sections
         scan_interval: 30
 
     rest_command:
@@ -87,6 +88,7 @@ Typical example of using this card in YAML config would look like this:
 type: 'custom:todoist-card'
 entity: sensor.to_do_list
 show_header: true
+show_sections: true
 show_completed: 5
 show_item_add: true
 use_quick_add: false
@@ -103,6 +105,7 @@ Here is what every option means:
 | `entity`             | `string`  | **required** | An entity_id within the `sensor` domain.                                                                                         |
 | `show_completed`     | `integer` | `5`          | Number of completed tasks shown at the end of the list (0 to disable).                                                           |
 | `show_header`        | `boolean` | `true`       | Show friendly name of the selected `sensor` in the card header.                                                                  |
+| `show_sections`      | `boolean` | `true`       | Group tasks by Todoist sections. Sections are collapsible and show their task count (needs `sections` in `json_attributes`). |
 | `show_item_add`      | `boolean` | `true`       | Show text input element for adding new items to the list.                                                                        |
 | `use_quick_add`      | `boolean` | `false`      | Use the [Quick Add](https://todoist.com/help/articles/task-quick-add) implementation, available in the official Todoist clients. |
 | `show_item_close`    | `boolean` | `true`       | Show `close/complete` and `uncomplete` buttons.                                                                                  |
@@ -128,7 +131,7 @@ Only the Home Assistant configuration changes, the card config stays the same:
 | `rest_command` url `.../sync/v9/{{ url }}`                          | `.../api/v1/{{ url }}`                                      |
 | Quick Add via `quick/add`                                           | Quick Add via `tasks/quick`                                 |
 
-Also add `tasks` to the sensor's `json_attributes` (see above). Then reload the configuration or restart Home Assistant and refresh the browser (clear cache if the old card is still shown).
+Also add `tasks` and `sections` to the sensor's `json_attributes` (see above). Then reload the configuration or restart Home Assistant and refresh the browser (clear cache if the old card is still shown).
 
 ## Troubleshooting
 
