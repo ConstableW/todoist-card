@@ -171,6 +171,15 @@ class TodoistCardEditor extends LitElement {
 
     _valueChanged(e) {
         const config = {...e.detail.value};
+        const caps = this._capabilities();
+
+        // Without rest_command.todoist nothing can be changed, so the actions are switched off in the config.
+        if (caps.kind === 'rest' && caps.tasks && !caps.write) {
+            config.show_item_add = false;
+            config.show_item_close = false;
+            config.show_item_delete = false;
+            config.use_quick_add = false;
+        }
 
         this.config = config;
         this.dispatchEvent(new CustomEvent('config-changed', {
@@ -243,6 +252,7 @@ class TodoistCardDialog extends LitElement {
             onSave: Object,
             onComplete: Object,
             onDelete: Object,
+            readonly: Boolean,
             _data: Object,
             _busy: Boolean,
             _error: String,
@@ -453,27 +463,31 @@ class TodoistCardDialog extends LitElement {
         return html`<div class="backdrop" @click=${(e) => e.target === e.currentTarget && this.close()}>
             <div class="dialog" role="dialog" aria-modal="true" aria-label="Edit task">
                 <div class="title">
-                    <span>Edit task</span>
+                    <span>${this.readonly ? 'Task details' : 'Edit task'}</span>
                     <button class="close" aria-label="Close" @click=${this.close}>&times;</button>
                 </div>
                 <ha-form
                     .hass=${this.hass}
                     .data=${this._data}
                     .schema=${this._schema}
+                    .disabled=${this.readonly}
                     .computeLabel=${(schema) => this._label(schema)}
                     @value-changed=${this._valueChanged}
                 ></ha-form>
                 ${this._error ? html`<div class="error">${this._error}</div>` : html``}
                 <div class="actions">
-                    <button class="delete" ?disabled=${this._busy} @click=${() => this.onDelete()}>
-                        Delete
-                    </button>
-                    <button class="complete" ?disabled=${this._busy} @click=${this._complete}>
-                        Complete task
-                    </button>
-                    <span class="spacer"></span>
-                    <button ?disabled=${this._busy} @click=${this.close}>Cancel</button>
-                    <button class="primary" ?disabled=${this._busy} @click=${this._save}>Save</button>
+                    ${this.readonly
+                        ? html`<span class="spacer"></span>
+                            <button class="primary" @click=${this.close}>Close</button>`
+                        : html`<button class="delete" ?disabled=${this._busy} @click=${() => this.onDelete()}>
+                                Delete
+                            </button>
+                            <button class="complete" ?disabled=${this._busy} @click=${this._complete}>
+                                Complete task
+                            </button>
+                            <span class="spacer"></span>
+                            <button ?disabled=${this._busy} @click=${this.close}>Cancel</button>
+                            <button class="primary" ?disabled=${this._busy} @click=${this._save}>Save</button>`}
                 </div>
             </div>
         </div>`;
@@ -758,6 +772,17 @@ class TodoistCard extends LitElement {
         return !!this.config && this.config.entity.startsWith('todo.');
     }
 
+    // Changing tasks needs a todo entity or rest_command.todoist. Without it the card is view only,
+    // whatever the options say.
+    get canWrite() {
+        return this.isTodo
+            || !!(this.hass && this.hass.services.rest_command && this.hass.services.rest_command.todoist);
+    }
+
+    allow(option) {
+        return this.canWrite && this.config[option] !== false;
+    }
+
     todoCall(service, data) {
         return this.hass.callService('todo', service, data, {entity_id: this.config.entity});
     }
@@ -1025,6 +1050,7 @@ class TodoistCard extends LitElement {
 
         dialog.hass = this.hass;
         dialog.mode = this.isTodo ? 'todo' : 'rest';
+        dialog.readonly = !this.canWrite;
         dialog.item = item;
         dialog.sections = this.getSections(state);
         dialog.onSave = (changes) => this.saveItem(item, state, changes);
@@ -1108,7 +1134,7 @@ class TodoistCard extends LitElement {
 
     renderItem(item) {
         return html`<div class="todoist-item">
-                            ${(this.config.show_item_close === undefined) || (this.config.show_item_close !== false)
+                            ${this.allow('show_item_close')
                                 ? html`<ha-icon-button
                                     class="todoist-item-close"
                                     @click=${() => this.itemClose(item)}
@@ -1127,7 +1153,7 @@ class TodoistCard extends LitElement {
                                            <span class="todoist-item-description">${item.description}</span>`
                                     : item.content}
                             </div>
-                            ${(this.config.show_item_delete === undefined) || (this.config.show_item_delete !== false)
+                            ${this.allow('show_item_delete')
                                 ? html`<ha-icon-button
                                     class="todoist-item-delete"
                                     @click=${() => this.confirmDelete(item)}
@@ -1224,7 +1250,7 @@ class TodoistCard extends LitElement {
                 ${this.config.show_completed && this.itemsCompleted
                     ? this.itemsCompleted.map(item => {
                             return html`<div class="todoist-item todoist-item-completed">
-                                ${(this.config.show_item_close === undefined) || (this.config.show_item_close !== false)
+                                ${this.allow('show_item_close')
                                     ? html`<ha-icon-button
                                         class="todoist-item-close"
                                         @click=${() => this.itemUncomplete(item)}
@@ -1240,7 +1266,7 @@ class TodoistCard extends LitElement {
                                             <span class="todoist-item-description">${item.description}</span>`
                                         : item.content}
                                 </div>
-                                ${(this.config.show_item_delete === undefined) || (this.config.show_item_delete !== false)
+                                ${this.allow('show_item_delete')
                                     ? html`<ha-icon-button
                                         class="todoist-item-delete"
                                         @click=${() => this.itemDeleteCompleted(item)}
@@ -1252,7 +1278,7 @@ class TodoistCard extends LitElement {
                         })
                     : html``}
             </div>
-            ${(this.config.show_item_add === undefined) || (this.config.show_item_add !== false)
+            ${this.allow('show_item_add')
                 ? html`<input
                     id="todoist-card-item-add"
                     type="text"
