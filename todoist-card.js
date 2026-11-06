@@ -198,7 +198,7 @@ class TodoistCardEditor extends LitElement {
             </div>
             <div class="option" style="font-size: 0.7rem; margin: -12px 0 0 45px">
                 <span>
-                    Check your <a target="_blank" href="https://github.com/grinstantin/todoist-card#using-the-card">configuration</a> before using this option
+                    Check your <a target="_blank" href="https://github.com/ConstableW/todoist-card#using-the-card">configuration</a> before using this option
                 </span>
             </div>
 
@@ -281,7 +281,10 @@ class TodoistCard extends LitElement {
     }
 
     getCardSize() {
-        return this.hass ? (this.hass.states[this.config.entity].attributes.items.length || 1) : 1;
+        const state = this.hass && this.hass.states[this.config.entity];
+        const items = state && (state.attributes.items || state.attributes.tasks);
+
+        return (items && items.length) || 1;
     }
     
     random(min, max) {
@@ -319,7 +322,7 @@ class TodoistCard extends LitElement {
                         this.hass
                             .callService('rest_command', 'todoist', {
                                 url: 'sync',
-                                payload: 'commands=' + JSON.stringify(commands),
+                                payload: 'commands=' + encodeURIComponent(JSON.stringify(commands)),
                             })
                             .then(response => {
                                 input.value = '';
@@ -336,8 +339,8 @@ class TodoistCard extends LitElement {
                         
                         this.hass
                             .callService('rest_command', 'todoist', {
-                                url: 'quick/add',
-                                payload: 'text=' + value + ' #' + state.attributes.project.name.replaceAll(' ',''),
+                                url: 'tasks/quick',
+                                payload: 'text=' + encodeURIComponent(value + ' #' + state.attributes.project.name.replaceAll(' ', '')),
                             })
                             .then(response => {
                                 input.value = '';
@@ -364,7 +367,7 @@ class TodoistCard extends LitElement {
         this.hass
             .callService('rest_command', 'todoist', {
                 url: 'sync',
-                payload: 'commands=' + JSON.stringify(commands),
+                payload: 'commands=' + encodeURIComponent(JSON.stringify(commands)),
             })
             .then(response => {
                 if (this.itemsCompleted.length >= this.config.show_completed) {
@@ -390,7 +393,7 @@ class TodoistCard extends LitElement {
         this.hass
             .callService('rest_command', 'todoist', {
                 url: 'sync',
-                payload: 'commands=' + JSON.stringify(commands),
+                payload: 'commands=' + encodeURIComponent(JSON.stringify(commands)),
             })
             .then(response => {
                 this.itemDeleteCompleted(item);
@@ -413,7 +416,7 @@ class TodoistCard extends LitElement {
         this.hass
             .callService('rest_command', 'todoist', {
                 url: 'sync',
-                payload: 'commands=' + JSON.stringify(commands),
+                payload: 'commands=' + encodeURIComponent(JSON.stringify(commands)),
             })
             .then(response => {
                 this.hass.callService('homeassistant', 'update_entity', {
@@ -433,13 +436,18 @@ class TodoistCard extends LitElement {
     }
 
     render() {
+        if (!this.hass || !this.config) {
+            return html``;
+        }
+
         let state = this.hass.states[this.config.entity] || undefined;
         
         if (!state) {
             return html``;
         }
         
-        let items = state.attributes.items || [];
+        // API v1 returns "tasks" instead of "items" in some endpoints.
+        let items = state.attributes.items || state.attributes.tasks || [];
         if (this.config.only_today_overdue) {
             items = items.filter(item => {
                 if (item.due) {

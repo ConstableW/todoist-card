@@ -1,21 +1,13 @@
-> [!WARNING]
-> ## This project is no longer maintained
->
-> **Todoist Card is no longer actively maintained.**
->
-> I have decided to discontinue development and support of this project. The repository is archived and there will be no further updates, bug fixes, or feature development.
->
-> The card may continue to work, but compatibility with future versions of **Home Assistant, HACS, or Todoist is not guaranteed**.
->
-> Please feel free to fork the project if you would like to continue development or maintain your own version.
->
-> Thank you to everyone who used, contributed to, and supported this project over the years! ❤️
+> [!NOTE]
+> This is a maintained fork of [grinstantin/todoist-card](https://github.com/grinstantin/todoist-card), which was discontinued.
+> It has been migrated to the Todoist API v1, because the Sync API v9 and REST API v2 were shut down on 2026-02-10.
+> **If you used the old configuration, update your `configuration.yaml` as described below.**
 
 # Todoist Card
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg)](https://github.com/hacs/integration)
-![hacs_badge](https://img.shields.io/github/v/release/grinstantin/todoist-card)
-![hacs_badge](https://img.shields.io/github/license/grinstantin/todoist-card)
+![hacs_badge](https://img.shields.io/github/v/release/ConstableW/todoist-card)
+![hacs_badge](https://img.shields.io/github/license/ConstableW/todoist-card)
 
 Todoist card for [Home Assistant](https://www.home-assistant.io) Lovelace UI. This card displays items from selected Todoist project.
 
@@ -25,13 +17,11 @@ Todoist card for [Home Assistant](https://www.home-assistant.io) Lovelace UI. Th
 
 ### HACS
 
-This card is available in [HACS](https://hacs.xyz) (Home Assistant Community Store).
-
-Just search for `Todoist Card` in HACS `Frontend` tab.
+Add this fork as a custom repository in [HACS](https://hacs.xyz): *HACS → ⋮ → Custom repositories → `https://github.com/ConstableW/todoist-card` → type `Dashboard`*. Then install `Todoist Card`.
 
 ### Manual
 
-1. Download `todoist-card.js` file from the [latest release](https://github.com/grinstantin/todoist-card/releases/latest).
+1. Download `todoist-card.js` file from the [latest release](https://github.com/ConstableW/todoist-card/releases/latest).
 2. Put `todoist-card.js` file into your `config/www` folder.
 3. Add a reference to `todoist-card.js` in Lovelace. There's two way to do that:
    1. **Using UI:** _Configuration_ → _Lovelace Dashboards_ → _Resources_ → Click Plus button → Set _Url_ as `/local/todoist-card.js` → Set _Resource type_ as `JavaScript Module`.
@@ -53,21 +43,20 @@ This card can be configured using Lovelace UI editor.
       - platform: rest
         name: To-do List
         method: GET
-        resource: 'https://api.todoist.com/sync/v9/projects/get_data'
-        params:
-          project_id: TODOIST_PROJECT_ID
+        resource: 'https://api.todoist.com/api/v1/projects/TODOIST_PROJECT_ID/full'
         headers:
           Authorization: !secret todoist_api_token
         value_template: '{{ value_json[''project''][''id''] }}'
         json_attributes:
           - project
           - items
+          - tasks
         scan_interval: 30
 
     rest_command:
       todoist:
         method: post
-        url: 'https://api.todoist.com/sync/v9/{{ url }}'
+        url: 'https://api.todoist.com/api/v1/{{ url }}'
         payload: '{{ payload }}'
         headers:
           Authorization: !secret todoist_api_token
@@ -83,7 +72,7 @@ This card can be configured using Lovelace UI editor.
 
     and `TODOIST_PROJECT_ID` with ID of your selected Todoist project.
 
-    > `TODOIST_PROJECT_ID` contains only numbers. You can get it from project URL, which usually looks like this:
+    > `TODOIST_PROJECT_ID` is the ID at the end of the project URL (in API v1 it may be alphanumeric), which usually looks like this:
     `https://todoist.com/app/project/TODOIST_PROJECT_ID`
 4. Reload configs or restart Home Assistant.
 5. In Lovelace UI, click 3 dots in top left corner.
