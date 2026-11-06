@@ -322,14 +322,14 @@ class TodoistCardDialog extends LitElement {
     get _schema() {
         if (this.mode === 'todo') {
             return [
-                {name: 'content', required: true, selector: {text: {}}},
+                {name: 'content', selector: {text: {}}},
                 {name: 'description', selector: {text: {multiline: true}}},
                 {name: 'due_date', selector: {date: {}}},
             ];
         }
 
         return [
-            {name: 'content', required: true, selector: {text: {}}},
+            {name: 'content', selector: {text: {}}},
             {name: 'description', selector: {text: {multiline: true}}},
             {name: 'due_string', selector: {text: {}}},
             {
@@ -374,7 +374,7 @@ class TodoistCardDialog extends LitElement {
                     },
                 }]),
             ...(this._data && this._data.section_id === NEW_SECTION
-                ? [{name: 'new_section_name', required: true, selector: {text: {}}}]
+                ? [{name: 'new_section_name', selector: {text: {}}}]
                 : []),
             {name: 'labels', selector: {text: {}}},
         ];
@@ -382,13 +382,13 @@ class TodoistCardDialog extends LitElement {
 
     _label(schema) {
         const labels = {
-            content: 'Title',
+            content: 'Title *',
             description: 'Description',
             due_date: 'Due date',
             due_string: this.readonly ? 'Date' : 'Date (e.g. "tomorrow", "every monday", empty = none)',
             priority: 'Priority',
             section_id: 'Section',
-            new_section_name: 'Name of the new section',
+            new_section_name: 'Name of the new section *',
             labels: 'Labels (comma separated)',
         };
 
